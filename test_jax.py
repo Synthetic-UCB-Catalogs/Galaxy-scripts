@@ -123,16 +123,71 @@ def SamplePop(Hr,Hz, size, key=key, max_age=12.):
 # return R
 
 # %%
-# %%time
+from config import Params
+from time import time
 
-Hr   = 4   # kpc
-Hz   = 0.5 # kpc
-num = 100000
+rng = np.random.default_rng() 
 
-data = SamplePop(Hr,Hz,num)
+Hr   = Params.HR   # kpc
+Hz   = Params.HZ # kpc
 
-data.shape
+sizes = np.logspace(10,20,11, base=2)
+times_jax = []
+times_np = []
 
+for num in sizes:
+
+    num = int(num)
+
+    begin = time()
+    
+    seed = rng.integers(10000)
+    key = random.key(seed)
+    data = SamplePop(Hr,Hz,num,key)
+    # X = np.array(X)
+    # Y = np.array(Y)
+    # Z = np.array(Z)
+
+    times_jax.append(time()-begin)
+
+    
+    print('{:d} took {:.2f} s.'.format(num,times_jax[-1]))
+
+times_jax = np.array(times_jax)
+
+
+
+# %%
+import PositionsSeparable_np as np_sampler
+
+for num in sizes:
+
+    num = int(num)
+
+    begin = time()
+    X,Y,Z,_ = np_sampler.SamplePop(num,Hr,Hz)
+    times_np.append(time()-begin)
+    
+    print('{:d} took {:.2f} s.'.format(num,times_np[-1]))
+
+times_np = np.array(times_np)
+
+# %%
+fig,ax = plt.subplots(ncols=1, nrows=1, figsize=(6,4))
+
+ax.loglog(sizes,times_jax, label='JAX')
+ax.loglog(sizes,times_np, label='NumPy')
+
+ax.grid(True,linestyle=':',linewidth='1.')
+ax.xaxis.set_ticks_position('both')
+ax.yaxis.set_ticks_position('both')
+ax.tick_params('both',length=3,width=0.5,which='both',direction = 'in',pad=10)
+
+
+ax.set_xlabel('sample size')
+ax.set_ylabel('time (s)')
+
+ax.legend();
 
 # %%
 coords = ['X','Y','Z']

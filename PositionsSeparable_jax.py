@@ -2,23 +2,28 @@ import numpy as np
 from config import Params
 
 import jax.numpy as jnp
-from jax import vmap, random
+from jax import vmap, random, jit
 from jax.scipy import optimize
 
+@jit
 def zCDFInvVec(Xiz):
     zCoord = -jnp.log(1-Xiz)
     return zCoord
 
+@jit
 def RCDF_residual(rr, Xir):
     Res = (1-jnp.exp(-rr))-rr*jnp.exp(-rr)-Xir
     return jnp.sum(Res**2)
 
+@jit
 def RCDFInv(Xir):  
     x0 = jnp.array([1.0])
     args = (Xir,)
     return optimize.minimize(RCDF_residual, x0, args, method="BFGS")
 
 RCDFInvVec = vmap(RCDFInv)
+
+from functools import partial
 
 def SamplePop(Hr,Hz, size, key, max_age=12.):
     
