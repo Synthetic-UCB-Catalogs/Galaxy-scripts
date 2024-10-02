@@ -220,7 +220,7 @@ if ModelParams['RecalculateNormConstants']:
     #Masses for each bin
     BinMasses        = NormCSet*IntList
     #Mass fractions in each bin
-    BinMassFractions = BinMasses/GalaxyParams['MGal']        
+    BinMassFractions = BinMasses/GalaxyParams['MGal']
     
 GalFunctionsDict = {'Besancon': RhoBesancon}
     
@@ -320,10 +320,14 @@ def DrawRZ(iBin,Model):
             sys.exit()
         return R
     
-def DrawRZGen(Model):
+def DrawStar(Model):
     BinSet = list(range(1,11))
-    iBin = np.random.choice(BinSet, p=BinMassFractions)
-    Res = DrawRZ(iBin,Model)
+    iBin   = np.random.choice(BinSet, p=BinMassFractions)
+    RZ     = DrawRZ(iBin,Model)
+    Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
+    FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
+    
+    Res = {'RZ': RZ, 'Bin': iBin, 'Age': Age, 'FeH': FeH}
 
     return Res
 
@@ -333,27 +337,31 @@ ThSetFin = np.zeros(int(ModelParams['NPoints']))
 XSetFin  = np.zeros(int(ModelParams['NPoints']))
 YSetFin  = np.zeros(int(ModelParams['NPoints']))
 AgeFin   = np.zeros(int(ModelParams['NPoints']))
+BinFin   = np.zeros(int(ModelParams['NPoints']))
+FeHFin   = np.zeros(int(ModelParams['NPoints']))
 
 
 for i in range(int(ModelParams['NPoints'])):
-    ResCurr     = DrawRZGen('Besancon')
-    Age         = np.random.uniform(0, 12)
-    if True:#not (ModelParams['OneBinToUse'] == 10):
-        RSetFin[i]  = ResCurr[0]
-        ZSetFin[i]  = ResCurr[1]
+    ResCurr     = DrawStar('Besancon')
+    AgeFin[i]   = ResCurr['Age']
+    BinFin[i]   = ResCurr['Bin']
+    FeHFin[i]   = ResCurr['FeH']
+    if not (ResCurr['Bin'] == 10):
+        RSetFin[i]  = ResCurr['RZ'][0]
+        ZSetFin[i]  = ResCurr['RZ'][1]
         Th          = 2.*np.pi*np.random.uniform()
         ThSetFin[i] = Th
-        XSetFin[i]  = ResCurr[0]*np.cos(Th)
-        YSetFin[i]  = ResCurr[0]*np.sin(Th)
+        XSetFin[i]  = ResCurr['RZ'][0]*np.cos(Th)
+        YSetFin[i]  = ResCurr['RZ'][0]*np.sin(Th)
     else:
         #The bulge
         #R and Z are such that Z is the -X axis of the bulge, and R=(X,Y) are (Y,-Z) axes of the bulge
         #First transform to bulge coordinates
         Th          = 2.*np.pi*np.random.uniform()
-        Rad         = ResCurr[0]
+        Rad         = ResCurr['RZ'][0]
         XPrime      = Rad*np.cos(Th)
         YPrime      = Rad*np.sin(Th)
-        ZPrime      = ResCurr[1]
+        ZPrime      = ResCurr['RZ'][1]
         #ASSUMING THE ALPHA ANGLE IS ALONG THE GALACTIC ROTATION - CHECK DWEK
         XSetFin[i]  = -ZPrime*np.sin(Alpha) + XPrime*np.cos(Alpha)
         YSetFin[i]  = ZPrime*np.cos(Alpha) + XPrime*np.sin(Alpha)
@@ -368,8 +376,12 @@ YRel     = YSetFin
 ZRel     = ZSetFin + GalaxyParams['ZGalSun']
 
 RRel     = np.sqrt(XRel**2 + YRel**2 + ZRel**2)
+Galb     = np.arcsin(ZRel/RRel)
+Gall     = np.zeros(int(ModelParams['NPoints']))
+Gall[YRel>=0] = np.arccos(XRel[YRel>=0]/(np.sqrt((RRel[YRel>=0])**2 - (ZRel[YRel>=0])**2)))
+Gall[YRel<0]  = 2*np.pi - np.arccos(XRel[YRel<0]/(np.sqrt((RRel[YRel<0])**2 - (ZRel[YRel<0])**2)))
 
-ResDict  = {'Age': Age, 'Xkpc': XSetFin, 'Ykpc': YSetFin, 'Zkpc': ZSetFin, 'Rkpc': RSetFin, 'Th': Th, 'XRelkpc': XRel, 'YRelkpc':YRel, 'ZRelkpc': ZRel, 'RRelkpc': RRel}
+ResDict  = {'Bin': BinFin, 'Age': AgeFin, 'FeH': FeHFin, 'Xkpc': XSetFin, 'Ykpc': YSetFin, 'Zkpc': ZSetFin, 'Rkpc': RSetFin, 'Th': Th, 'XRelkpc': XRel, 'YRelkpc':YRel, 'ZRelkpc': ZRel, 'RRelkpc': RRel, 'Galb': Galb, 'Gall': Gall}
 ResDF    = pd.DataFrame(ResDict)    
 ResDF.to_csv('./FullGalaxy.csv', index = False)
 
