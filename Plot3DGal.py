@@ -24,11 +24,12 @@ import cmasher as cmr
 sys.path.insert(1, './PyModules/')
 
 
-Make3DMap   = False
-MakeGalView = True
+Make3DMap    = False
+MakeGalView  = False
+LEGWORKStepQ = True
 
 # Read in the Galaxy data
-df  = pd.read_csv('./FullGalaxy.csv')
+df  = pd.read_csv('./FullGalaxyDWD.csv')
 # Extracting the columns
 x   = df['Xkpc']
 y   = df['Ykpc']
@@ -104,7 +105,7 @@ if MakeGalView:
     cbar = fig.colorbar(scatter, ax=ax)
     cbar.set_label('Age (Gyr)', rotation=270, labelpad=10)
     
-    plt.savefig('./GalaxyCoordsAge.png', dpi=DPI)   
+    plt.savefig('./GalaxyCoordsAgeDWD.png', dpi=DPI)   
 
     df['FeH'][df['FeH'] >0.4] = 0.4
 
@@ -127,7 +128,7 @@ if MakeGalView:
     cbar = fig.colorbar(scatter, ax=ax)
     cbar.set_label('[Fe/H]', rotation=270, labelpad=10)
     
-    plt.savefig('./GalaxyCoordsFeH.png', dpi=DPI)
+    plt.savefig('./GalaxyCoordsFeHDWD.png', dpi=DPI)
     
     cm_to_inch = 1 / 2.54
     nrows=4
@@ -194,70 +195,40 @@ if MakeGalView:
     )
     cbar.set_label('[Fe/H]', rotation=270, labelpad=15)
     
-    plt.savefig('./GalaxyCoordsFeHBinned.png', dpi=DPI)
+    plt.savefig('./GalaxyCoordsFeHBinnedDWD.png', dpi=DPI)
     
 
-
-
-sys.exit()
-#Draw the DWDs
-DWDArrPre = pd.read_csv('./DWD.csv')
-#Assuming constant SFR from 14 Gyr till today, re-weight the distribution of DWDs
-CurrAge    = 14000
-NDraw      = 150
-DWDUseList = []
-while CurrAge>=500:
-    #print(CurrAge)
-    DWDCurrBin    = DWDArrPre[((DWDArrPre['time']<=CurrAge) & (DWDArrPre['time']>(CurrAge-500)))]
-    #print(len(DWDCurrBin.index))
-    DWDCurrBinUse = DWDCurrBin.sample(n=NDraw,random_state=1) 
-    DWDUseList.append(DWDCurrBinUse)
-    CurrAge -=500
-
-DWDUse = pd.concat(DWDUseList)
-
-
-DWDUse.to_csv('./DWDUseTest.csv',index=False)
-
-NSys  = len(DWDUse.index)
-GalDF = df.sample(n=NSys,random_state=1) 
-GalDF['RRelSunKpc'] = np.sqrt((GalDF['Xkpc']-8)**2+ (GalDF['Ykpc'])**2 + (GalDF['Zkpc'])**2)
-
-DWDUse = DWDUse.reset_index(drop=True)
-GalDF = GalDF.reset_index(drop=True)
-
-GalDWD = pd.concat([DWDUse,GalDF],axis=1)
-    
-GalDWD.to_csv('./GalDWDTest.csv',index=False)
 
 #LEGWORK part
+if LEGWORKStepQ:
 
-n_values = NSys
-m_1 = (GalDWD['mass1']).to_numpy() * u.Msun
-m_2 = (GalDWD['mass2']).to_numpy() * u.Msun
-dist = (GalDWD['RRelSunKpc']).to_numpy() * u.kpc
-f_orb = (1/(GalDWD['porb']*24.*60*60)).to_numpy() * u.Hz
-ecc   = np.zeros(NSys)
+    n_values = len(df.index)
 
-sources = source.Source(m_1=m_1, m_2=m_2, ecc=ecc, dist=dist, f_orb=f_orb)
-snr = sources.get_snr(verbose=True)
-
-cutoff = -0.2
-
-detectable_threshold = cutoff
-detectable_sources = sources.snr > cutoff
-print("{} of the {} sources are detectable".format(len(sources.snr[detectable_sources]), n_values))
-
-# create the same plot but set `show=False`
-fig, ax = sources.plot_source_variables(xstr="f_orb", ystr="snr", disttype="kde", log_scale=(True, True),
-                                        fill=True, show=False, which_sources=sources.snr > 0, figsize=(10, 8))
-
-#ax.set_aspect(0.8)
-
-# duplicate the x axis and plot the LISA sensitivity curve
-right_ax = ax.twinx()
-frequency_range = np.logspace(np.log10(2e-6), np.log10(2e-1), 1000) * u.Hz
-vis.plot_sensitivity_curve(frequency_range=frequency_range, fig=fig, ax=right_ax,fill=False)
-
-plt.savefig('./SensitivityCurve.png')
+    m_1    = (df['mass1']).to_numpy() * u.Msun
+    m_2    = (df['mass2']).to_numpy() * u.Msun
+    dist   = (df['RRelkpc']).to_numpy() * u.kpc
+    f_orb = (1/(df['porb']*24.*60*60)).to_numpy() * u.Hz
+    ecc   = np.zeros(NSys)
+    
+    sources = source.Source(m_1=m_1, m_2=m_2, ecc=ecc, dist=dist, f_orb=f_orb)
+    snr = sources.get_snr(verbose=True)
+    
+    cutoff = -0.2
+    
+    detectable_threshold = cutoff
+    detectable_sources = sources.snr > cutoff
+    print("{} of the {} sources are detectable".format(len(sources.snr[detectable_sources]), n_values))
+    
+    # create the same plot but set `show=False`
+    fig, ax = sources.plot_source_variables(xstr="f_orb", ystr="snr", disttype="kde", log_scale=(True, True),
+                                            fill=True, show=False, which_sources=sources.snr > 0, figsize=(10, 8))
+    
+    #ax.set_aspect(0.8)
+    
+    # duplicate the x axis and plot the LISA sensitivity curve
+    right_ax = ax.twinx()
+    frequency_range = np.logspace(np.log10(2e-6), np.log10(2e-1), 1000) * u.Hz
+    vis.plot_sensitivity_curve(frequency_range=frequency_range, fig=fig, ax=right_ax,fill=False)
+    
+    plt.savefig('./SensitivityCurve.png')
 
