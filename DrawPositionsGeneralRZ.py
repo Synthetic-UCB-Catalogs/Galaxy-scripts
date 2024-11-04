@@ -9,11 +9,22 @@ Created on Wed Jun  5 18:05:24 2024
 import numpy as np
 import pandas as pd
 import scipy as sp
+import random
+import h5py
 from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import UnivariateSpline
+from astropy import constants as const
+from astropy import units as u
 
 from scipy.optimize import root
 import sys
-sys.path.insert(1, './PyModules/')
+import os
+CodeDir       = os.path.dirname(os.path.abspath(__file__))
+sys.path[1:1] = [os.path.join(CodeDir, 'PyModules'), os.path.join(CodeDir, 'Data'), os.path.join(CodeDir, 'Simulations')]
+from BesanconModelInitParams import BesanconParamsDefined
+from GalaxyParameters import GalaxyParams
+from get_mass_norm import get_mass_norm
+from rapid_code_load_T0 import load_T0_data
 
 #Units are MSun, kpc, Gyr
 #FOR VISUALS, WE USE A RIGHT-HANDED SYSTEM, WITH X POINTING AT THE SUN, Z ALIGNED WITH THE SPIN, AND THE ORIGIN AT THE GALACTIC CENTER
@@ -23,25 +34,17 @@ sys.path.insert(1, './PyModules/')
 ModelParams = {'GalaxyModel': 'Besancon',
                'UseOneBinOnly': False, #If False - use full model; if True - use just one bin, for visualizations
                'OneBinToUse': 10, #Number of the bin, if only one bin in used
-               'RecalculateNormConstants': True, #If true, density normalisations are recalculated and printed out, else already existing versions are used (this option is not yet coded)
-               'NPoints': 1e4 # Number of stars to sample
+               'RecalculateNormConstants': False, #If true, density normalisations are recalculated and printed out, else already existing versions are used
+               'ImportSimulation': True, #If true, construct the present-day DWD populaiton (as opposed to the MS population)
+               'NPoints': 1e4 # Number of stars to sample if we just sample present-day stars
     }
 
 #Galaxy model can be 'Besancon'
 
 
-#Galaxy parameters
-GalaxyParams = {'MGal': 6.43e10, #From Licquia and Newman 2015
-                'MBulge': 6.1e9, #From Robin+ 2012, metal-rich bulge
-                'MBulge2': 2.6e8, #From Robin+ 2012, metal-poor bulge
-                'MHalo': 1.4e9, #From Deason+ 2019 (https://ui.adsabs.harvard.edu/abs/2019MNRAS.490.3426D/abstract)
-                'RGalSun': 8.2,  #Bland-Hawthorn, Gerhard 2016
-                'ZGalSun': 0.025 #Bland-Hawthorn, Gerhard 2016
-               }
-
 
 ######################################
-#######    Model Specifications
+#######    Galactic Model Specifications
 ###
 
 #For Besancon model, see the full description at https://model.obs-besancon.fr/modele_descrip.php
@@ -52,23 +55,6 @@ GalaxyParams = {'MGal': 6.43e10, #From Licquia and Newman 2015
 
 #Define the model in two steps:
 #First, specify already known parameters
-BesanconParamsDefined = {
-    'BinName':np.array(['ThinDisk1', 'ThinDisk2','ThinDisk3','ThinDisk4','ThinDisk5','ThinDisk6','ThinDisk7','ThickDisk','Halo','Bulge']),
-    'AgeMin': 1000.*np.array([0,0.15,1,2,3,5,7,10,14,8],dtype='float64'),
-    'AgeMax': 1000.*np.array([0.15,1.,2.,3.,5.,7.,10.,10.,14.,10],dtype='float64'),
-    'XRange': np.array([30,30,30,30,30,30,30,30,50,5],dtype='float64'),
-    'YRange': np.array([30,30,30,30,30,30,30,30,50,5],dtype='float64'),
-    'ZRange': np.array([4,4,4,4,4,4,4,8,50,3],dtype='float64'),
-    'FeHMean': np.array([0.01,0.03,0.03,0.01,-0.07,-0.14,-0.37,-0.78,-1.78,0.00],dtype='float64'),
-    'FeHStD': np.array([0.12,0.12,0.10,0.11,0.18,0.17,0.20,0.30,0.50,0.40],dtype='float64'),
-    #'Rho0ParamSetMSunPcM3': np.array([4.0e-3,7.9e-3,6.2e-3,4.0e-3,5.8e-3,4.9e-3,6.6e-3,1.34e-3,9.32e-6],dtype='float64'), Robin2003
-    'Rho0ParamSetMSunPcM3': np.array([1.888e-3,5.04e-3,4.11e-3,2.84e-3,4.88e-3,5.02e-3,9.32e-3,2.91e-3,9.2e-6],dtype='float64'), #Czekaj2014
-    'SigmaWKmS': np.array([6,8,10,13.2,15.8,17.4,17.5],dtype='float64'),
-    'EpsSetThin': np.array([0.0140, 0.0268, 0.0375, 0.0551, 0.0696, 0.0785, 0.0791],dtype='float64'),
-    'EpsHalo': np.array([0.76],dtype='float64'),
-    'dFedR': np.array([-0.07,-0.07,-0.07,-0.07,-0.07,-0.07,-0.07,0,0,0],dtype='float64'),
-    'CSVNames':np.array(['GalTestThin1.csv','GalTestThin2.csv','GalTestThin3.csv','GalTestThin4.csv','GalTestThin5.csv','GalTestThin6.csv','GalTestThin7.csv','GalTestThick.csv','GalTestHalo.csv','GalTestBulge.csv'])
-     }
 
 
 
@@ -222,6 +208,14 @@ if ModelParams['RecalculateNormConstants']:
     #Mass fractions in each bin
     BinMassFractions = BinMasses/GalaxyParams['MGal']
     
+    NormConstantsDict = {'NormCSet': NormCSet, 'BinMasses': BinMasses, 'BinMassFractions': BinMassFractions}
+    NormConstantsDF   = pd.DataFrame(NormConstantsDict)
+    NormConstantsDF.to_csv('./Data/BesanconGalacticConstants.csv',index=False)
+else:
+    NormConstantsDF   = pd.read_csv('./Data/BesanconGalacticConstants.csv')
+    NormConstantsDict = NormConstantsDF.to_dict(orient='list')
+    
+    
 GalFunctionsDict = {'Besancon': RhoBesancon}
     
 
@@ -281,6 +275,228 @@ def PreCompute(iBin, Model):
     Res        = {'MidRSet': MidRSet, 'RCDFSet': RCDFSet}
     return Res
 
+
+#Import simulation files
+
+#def print_structure(name, obj):
+#    indent = '  ' * (name.count('/') - 1)
+#    if isinstance(obj, h5py.Dataset):
+#        print(f"{indent}- Dataset: {name} | Shape: {obj.shape} | Type: {obj.dtype}")
+#    elif isinstance(obj, h5py.Group):
+#        print(f"{indent}- Group: {name}")
+
+#Units
+DaysToSec = float(str((u.d/u.s).decompose()))
+YearToSec = float(str((u.yr/u.s).decompose()))
+MyrToSec  = 1.e6*YearToSec
+KmToCM    = float(str((u.km/u.cm).decompose()))
+MSunToG   = ((const.M_sun/u.g).decompose()).value
+RSunToCm  = ((const.R_sun/u.cm).decompose()).value
+
+#Constants
+GNewtCGS  = ((const.G*u.g*((u.s)**2)/(u.cm)**3).decompose()).value
+CLightCGS = ((const.c*(u.s/u.cm)).decompose()).value
+RGravSun  = 2.*GNewtCGS*MSunToG/CLightCGS**2
+RhoConv   = (MSunToG/RSunToCm**3)
+
+#GW constants
+ADotGWPreFacCGS = (64./5)*((CLightCGS)**(-2))*(GNewtCGS*MSunToG/(RSunToCm*CLightCGS))**3
+TauGWPreFacMyr  = (RSunToCm/ADotGWPreFacCGS)/MyrToSec
+
+MRWDMset,MRWDRSet    = np.split(np.loadtxt(CodeDir + '/WDData/MRRel.dat'),2,axis=1)
+MRWDMset             = MRWDMset.flatten()
+MRWDRSet             = MRWDRSet.flatten()
+MRSpl                = UnivariateSpline(MRWDMset, MRWDRSet, k=4, s=0)
+
+#WD radius in RSun
+def RWDPre(MWD):
+    Res = float(MRSpl(MWD))
+    return Res
+RWD = np.vectorize(RWDPre)
+
+
+#The orbital period in years
+def POrbYrPre(MDonor, MAccretor, BinARSun):
+    Omega = np.sqrt(GNewtCGS*MSunToG*(MDonor + MAccretor)/(BinARSun*RSunToCm)**3)
+    Res   = (2.*np.pi/Omega)/YearToSec
+    return Res
+POrbYr = np.vectorize(POrbYrPre)
+
+#The binary separation in RSun
+def ABinRSunPre(MDonor, MAccretor, POrbYr):
+    Omega = (2.*np.pi/(POrbYr*YearToSec))
+    Res = ((GNewtCGS*MSunToG*(MDonor + MAccretor)/Omega**2)**(1/3))/RSunToCm
+    return Res
+ABinRSun = np.vectorize(ABinRSunPre)
+
+
+#The GW timescale in megayears
+def TGWMyrPre(M1MSun, M2MSun, aRSun):
+    Res = TauGWPreFacMyr/((M1MSun + M2MSun)*M1MSun*M2MSun/aRSun**4)
+    return Res
+TGWMyr = np.vectorize(TGWMyrPre)
+XXX
+
+#Roche lobe radius/BinA -- Eggeleton's formula
+def fRL(q):
+    X   = q**(1./3)
+    Res = 0.49*(X**2)/(0.6*(X**2) + np.log(1.+X))
+    return Res
+
+#Roche lobe radius/BinA for the donor
+def fRLDonor(MDonorMSun,MAccretorMSun):
+    q = MDonorMSun/MAccretorMSun
+    return fRL(q)
+
+
+
+if ModelParams['ImportSimulation']:
+    #Import data
+    #Parameters
+    RunWave         = 'fiducial'
+    FileName        = './Simulations/COSMIC_T0.hdf5'
+    ACutRSunPre     = 6     #Initial cut for all binaries
+    LISAPCutHours   = 0.5*(1/1.e-4)/(3600.)  #1/e-4 Hz + remember that GW frequency is 2X the orbital frequency
+    MaxTDelay       = 14000    
+    RepresentDWDsBy = 10000    #Represent the present-day LISA candidates by this nubmer of binaries
+    DeltaTGalMyr    = 50       #Time step resolution in the Galactic SFR
+    
+    #General quantities
+    MassNorm        = get_mass_norm(RunWave)
+    NStarsPerRun    = GalaxyParams['MGal']/MassNorm
+    SimData         = load_T0_data(FileName)
+    NRuns           = SimData[1]['NSYS'][0]
+    
+    #Pre-process simulations
+    Sims                          = SimData[0]
+    DWDSetPre                     = Sims.loc[(Sims.type1.isin([21,22,23])) & (Sims.type2.isin([21,22,23])) & (Sims.semiMajor > 0) & (Sims.semiMajor < ACutRSunPre)].groupby('ID', as_index=False).first() #DWD binaries at the moment of formation with a<8RSun
+    #General properties
+    #Lower-mass WD radius
+    DWDSetPre['RDonorRSun']       = RWD(np.minimum(DWDSetPre['mass1'],DWDSetPre['mass2']))
+    #Mass ratio (lower-mass WD mass/higher-mass WD mass)
+    DWDSetPre['qSet']             = np.minimum(DWDSetPre['mass1'],DWDSetPre['mass2'])/np.maximum(DWDSetPre['mass1'],DWDSetPre['mass2'])
+    #RLO separation for the lower-mass WD
+    DWDSetPre['aRLORSun']         = DWDSetPre['RDonorRSun']/fRL(DWDSetPre['qSet'])
+    #Period at DWD formation
+    DWDSetPre['PSetDWDFormHours'] = POrbYr(DWDSetPre['mass1'],DWDSetPre['mass2'], DWDSetPre['semiMajor'])*YearToSec/(3600.)  
+    #Period at RLO
+    DWDSetPre['PSetRLOHours']     = POrbYr(DWDSetPre['mass1'],DWDSetPre['mass2'], DWDSetPre['aRLORSun'])*YearToSec/(3600.) 
+    
+    #GW-related timescales
+    #Point mass GW inspiral time from DWD formation to zero separation
+    DWDSetPre['TGWMyrSetTot']            = TGWMyr(DWDSetPre['mass1'],DWDSetPre['mass2'],DWDSetPre['semiMajor'])
+    #Point mass GW inspiral time from DWD formation to LISA band (or zero, if we are in the band already)
+    DWDSetPre['aLISABandRSun']           = ABinRSun(DWDSetPre['mass1'], DWDSetPre['mass2'], (LISAPCutHours*3600)/YearToSec)
+    DWDSetPre['TGWMyrToLISABandSet']     = (DWDSetPre['TGWMyrSetTot'] - TGWMyr(DWDSetPre['mass1'],DWDSetPre['mass2'],DWDSetPre['aLISABandRSun'])).clip(0)
+    #Point mass GW inspiral time from LISA band (or current location if we are in the band) to RLO    
+    DWDSetPre['TGWMyrLISABandToRLOSet']  = TGWMyr(DWDSetPre['mass1'],DWDSetPre['mass2'],np.minimum(DWDSetPre['aLISABandRSun'],DWDSetPre['semiMajor'])) - TGWMyr(DWDSetPre['mass1'],DWDSetPre['mass2'],DWDSetPre['aRLORSun'])
+    #Time from DMS formation to the DWD entering the LISA band
+    DWDSetPre['AbsTimeToLISAMyr']    = DWDSetPre['time'] + DWDSetPre['TGWMyrToLISABandSet']
+    #Time from DMS formation to the DWD RLO
+    DWDSetPre['AbsTimeToLISAEndMyr'] = DWDSetPre['AbsTimeToLISAMyr'] + DWDSetPre['TGWMyrLISABandToRLOSet']
+    
+    #Select DWDs that: 1)Do not merge upon formation, 2) Will reach the LISA band within the age of the Universe
+    DWDSet                       = DWDSetPre.loc[(DWDSetPre.semiMajor > DWDSetPre.aRLORSun) & (DWDSetPre.AbsTimeToLISAMyr < MaxTDelay)].sort_values('AbsTimeToLISAMyr')
+    #Total number of DWDs produced in the simulation
+    NDWDLISAAllTimesCode         = len(DWDSet.index)
+    #Corresponding total number of DWDs ever formed in the MW
+    NDWDLISAAllTimesReal         = NDWDLISAAllTimesCode*NStarsPerRun
+    
+    
+    #Get the number of present-day potential LISA sources
+    #Track the considered sub-bin
+    SubBinCounter    = 0
+    #Make a DF that tracks DWD counts, times etc in each sub-bin
+    SubBinProps      = []
+    #Make a dict that keeps DWD ID pointers for each sub-bin
+    SubBinDWDIDDict     = {}
+    #Go over each Besancon bin
+    for iBin in range(len(BesanconParamsDefined['BinName'])):
+        #Bin start and end times
+        TGalBinStart = BesanconParamsDefined['AgeMin'][iBin]
+        TGalBinEnd   = BesanconParamsDefined['AgeMax'][iBin]
+        #Galactic mass fraction in the bin        
+        GalBinProb   = NormConstantsDict['BinMassFractions'][iBin]
+        #Number of sub-bins, equally spaced in time; one sub-bin for starburst bins
+        NSubBins     = int(np.floor((TGalBinEnd - TGalBinStart)/DeltaTGalMyr) + 1)
+        #Time duration of each sub-bin in this bin
+        CurrDeltaT   = (TGalBinEnd - TGalBinStart)/NSubBins
+        #Galactic mass fraction per sub-bin
+        GalSubBinProb = GalBinProb/NSubBins
+        #Initialise the start and end time of the current sub-bin
+        CurrTMin      = TGalBinStart
+        CurrTMax      = TGalBinStart + CurrDeltaT
+        #print('Bin:', iBin)        
+        #Loop over sub-bins
+        for jSubBin in range(NSubBins):
+            #Mid-point in time
+            CurrTMid            = 0.5*(CurrTMin + CurrTMax)
+            #Current LISA sources (formed before today, will leave the band after today)
+            LISASourcesCurrDF   = DWDSet[(DWDSet['AbsTimeToLISAMyr'] < CurrTMid) & (DWDSet['AbsTimeToLISAEndMyr'] > CurrTMid)]
+            #The expected number of LISA sources, 
+            CurrSubBinNDWDsCode = len(LISASourcesCurrDF.index)
+            CurrSubBinDWDReal   = GalSubBinProb*NStarsPerRun*CurrSubBinNDWDsCode
+            #Log sub-bin properties
+            SubBinProps.append({'SubBinAbsID':SubBinCounter, 'SubBinLocalID':jSubBin, 'BinID':iBin, 'SubBinMidAge': CurrTMid, 'SubBinDeltaT': CurrDeltaT, 
+                                'SubBinNDWDsCode': CurrSubBinNDWDsCode, 
+                                'SubBinNDWDsReal': CurrSubBinDWDReal})
+            #Log DWDs
+            SubBinDWDIDDict[SubBinCounter] = LISASourcesCurrDF
+            #print(CurrTMin, CurrTMax, NLISASourcesCurr)
+            SubBinCounter += 1
+            CurrTMin      += CurrDeltaT
+            CurrTMax      += CurrDeltaT
+            #print(NSubBins)
+
+    #Make a DF for the present-day population properties
+    SubBinDF = pd.DataFrame(SubBinProps)
+    #Export the population properties
+    SubBinDF.to_csv('./GalaxyLISACandidateStats.csv', index = False)
+    
+    #Get overall present-day properties
+    #Total real number of LISA sources
+    NLISACandidatesToday           = np.sum(SubBinDF['SubBinNDWDsReal'])
+    #Total number of simulations available to draw from
+    NLISACandidatesTodaySimulated  = np.sum(SubBinDF['SubBinNDWDsCode'])
+    #Fraction of DWDs that have formed and become present-day LISA sources
+    FracLISADWDsfromAllDWDs        = NLISACandidatesToday/NDWDLISAAllTimesReal
+    #What fraction of the needed DWDs we have simulated (approximate number)
+    FracSimulated                  = NDWDLISAAllTimesCode/NLISACandidatesToday
+    
+    #Auxiliary function to make rounding statistically equal to averaged    
+    def probabilistic_round(N):
+        lower = int(N)
+        upper = lower + 1
+        fractional_part = N - lower
+        return upper if random.random() < fractional_part else lower    
+    
+        
+    #Make a dataset of the present-day LISA DWD candidates
+    #Draw the number of objects from each sub-bin in proportion to the number of real DWD LISA candidates expected from this sub-bin
+    NFindPre     = RepresentDWDsBy
+    NFindSubBins = np.array([probabilistic_round((NFindPre/NLISACandidatesToday)*SubBinDF['SubBinNDWDsReal'].iloc[i]) for i in range(SubBinCounter)],dtype=int)
+    NFind        = np.sum(NFindSubBins)
+    PresentDayDWDCandFinSet    = []
+    #Do the actual drawing
+    for iSubBin in range(SubBinCounter):
+        CurrFind     = NFindSubBins[iSubBin]
+        if CurrFind > 0:
+            PresentDayDWDCandFin   = SubBinDWDIDDict[iSubBin].sample(n=CurrFind, replace=True)
+            SubBinRow              = SubBinDF.iloc[iSubBin]
+            SubBinData             = pd.DataFrame([SubBinRow.values] * len(PresentDayDWDCandFin), columns=SubBinRow.index)
+            PresentDayDWDCandFinSet.append(pd.concat([PresentDayDWDCandFin.reset_index(drop=True), SubBinData.reset_index(drop=True)], axis=1))
+                    
+    PresentDayDWDCandFinDF = pd.concat(PresentDayDWDCandFinSet, ignore_index=True)
+    
+    #Find present-day periods:
+    for 
+    
+            
+    
+######################################################
+############ Galaxy Sampling Part
+####    
+
 #ModelCache     = PreCompute(ModelParams['OneBinToUse'],'Besancon')
 ModelCache     = {}
 for i in range(10):
@@ -320,9 +536,10 @@ def DrawRZ(iBin,Model):
             sys.exit()
         return R
     
-def DrawStar(Model):
-    BinSet = list(range(1,11))
-    iBin   = np.random.choice(BinSet, p=BinMassFractions)
+def DrawStar(Model,iBin):
+    if iBin == -1:
+        BinSet = list(range(1,11))
+        iBin   = np.random.choice(BinSet, p=NormConstantsDict['BinMassFractions'])
     RZ     = DrawRZ(iBin,Model)
     Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
     FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
@@ -331,19 +548,33 @@ def DrawStar(Model):
 
     return Res
 
-RSetFin  = np.zeros(int(ModelParams['NPoints']))
-ZSetFin  = np.zeros(int(ModelParams['NPoints']))
-ThSetFin = np.zeros(int(ModelParams['NPoints']))
-XSetFin  = np.zeros(int(ModelParams['NPoints']))
-YSetFin  = np.zeros(int(ModelParams['NPoints']))
-AgeFin   = np.zeros(int(ModelParams['NPoints']))
-BinFin   = np.zeros(int(ModelParams['NPoints']))
-FeHFin   = np.zeros(int(ModelParams['NPoints']))
 
 
-for i in range(int(ModelParams['NPoints'])):
-    ResCurr     = DrawStar('Besancon')
-    AgeFin[i]   = ResCurr['Age']
+#Draw the Galactic positions
+
+if ModelParams['ImportSimulation']:
+    NGalDo = NFind
+else:
+    NGalDo = int(ModelParams['NPoints'])
+    
+RSetFin  = np.zeros(NGalDo)
+ZSetFin  = np.zeros(NGalDo)
+ThSetFin = np.zeros(NGalDo)
+XSetFin  = np.zeros(NGalDo)
+YSetFin  = np.zeros(NGalDo)
+AgeFin   = np.zeros(NGalDo)
+BinFin   = np.zeros(NGalDo)
+FeHFin   = np.zeros(NGalDo)
+
+
+for i in range(NGalDo):
+    if ModelParams['ImportSimulation']:
+        ResCurr     = DrawStar('Besancon', int(PresentDayDWDCandFinDF.iloc[i]['BinID']) + 1)
+        AgeFin[i]   = PresentDayDWDCandFinDF.iloc[i]['SubBinMidAge']
+    else:
+        ResCurr     = DrawStar('Besancon', -1)
+        AgeFin[i]   = ResCurr['Age']
+
     BinFin[i]   = ResCurr['Bin']
     FeHFin[i]   = ResCurr['FeH']
     if not (ResCurr['Bin'] == 10):
@@ -377,13 +608,18 @@ ZRel     = ZSetFin + GalaxyParams['ZGalSun']
 
 RRel     = np.sqrt(XRel**2 + YRel**2 + ZRel**2)
 Galb     = np.arcsin(ZRel/RRel)
-Gall     = np.zeros(int(ModelParams['NPoints']))
+Gall     = np.zeros(NGalDo)
 Gall[YRel>=0] = np.arccos(XRel[YRel>=0]/(np.sqrt((RRel[YRel>=0])**2 - (ZRel[YRel>=0])**2)))
 Gall[YRel<0]  = 2*np.pi - np.arccos(XRel[YRel<0]/(np.sqrt((RRel[YRel<0])**2 - (ZRel[YRel<0])**2)))
 
 ResDict  = {'Bin': BinFin, 'Age': AgeFin, 'FeH': FeHFin, 'Xkpc': XSetFin, 'Ykpc': YSetFin, 'Zkpc': ZSetFin, 'Rkpc': RSetFin, 'Th': Th, 'XRelkpc': XRel, 'YRelkpc':YRel, 'ZRelkpc': ZRel, 'RRelkpc': RRel, 'Galb': Galb, 'Gall': Gall}
-ResDF    = pd.DataFrame(ResDict)    
-ResDF.to_csv('./FullGalaxy.csv', index = False)
+ResDF    = pd.DataFrame(ResDict)
+
+#DWDDF    = DWDSet.iloc[IDSet]
+if ModelParams['ImportSimulation']:
+    ResDF      = pd.concat([ResDF, PresentDayDWDCandFinDF], axis=1)
+
+ResDF.to_csv('./FullGalaxyDWD.csv', index = False)
 
 
 
