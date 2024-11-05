@@ -11,6 +11,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import sys
+import pyvista as pv
+import os
 import legwork.source as source
 import legwork.visualisation as vis
 import astropy.units as u
@@ -24,12 +26,13 @@ import cmasher as cmr
 sys.path.insert(1, './PyModules/')
 
 
-Make3DMap    = False
-MakeGalView  = False
-LEGWORKStepQ = True
+Make3DMap      = False
+MakeGalView    = False
+LEGWORKStepQ   = False
+AnimationStepQ = True
 
 # Read in the Galaxy data
-df  = pd.read_csv('./FullGalaxyDWD.csv')
+df  = pd.read_csv('./FullGalaxyDWDLISAOnly.csv')
 # Extracting the columns
 x   = df['Xkpc']
 y   = df['Ykpc']
@@ -43,7 +46,7 @@ if Make3DMap:
     ax = fig.add_subplot(111, projection='3d', facecolor='black')
 
     # Plotting the points
-    ax.scatter(x, y, z, color='lime', s=5, alpha=0.05)  # 's' is the size of the points
+    ax.scatter(x, y, z, color='lime', s=3, alpha=0.02)  # 's' is the size of the points
 
     # Set the background color
     ax.set_facecolor('black')
@@ -66,7 +69,7 @@ if Make3DMap:
     ax.tick_params(axis='z', colors='white')
 
     # Save the plot as a high-resolution image
-    plt.savefig('./LISAGalTestFull.png', dpi=300, bbox_inches='tight', pad_inches=0.1, facecolor='black')
+    plt.savefig('./LISAGalTestFullMany.png', dpi=300, bbox_inches='tight', pad_inches=0.1, facecolor='black')
 
 if MakeGalView:
     print(df.columns)
@@ -105,7 +108,7 @@ if MakeGalView:
     cbar = fig.colorbar(scatter, ax=ax)
     cbar.set_label('Age (Gyr)', rotation=270, labelpad=10)
     
-    plt.savefig('./GalaxyCoordsAgeDWD.png', dpi=DPI)   
+    plt.savefig('./GalaxyCoordsAgeDWDLISAOnly.png', dpi=DPI)   
 
     df['FeH'][df['FeH'] >0.4] = 0.4
 
@@ -128,7 +131,7 @@ if MakeGalView:
     cbar = fig.colorbar(scatter, ax=ax)
     cbar.set_label('[Fe/H]', rotation=270, labelpad=10)
     
-    plt.savefig('./GalaxyCoordsFeHDWD.png', dpi=DPI)
+    plt.savefig('./GalaxyCoordsFeHDWDLISAOnly.png', dpi=DPI)
     
     cm_to_inch = 1 / 2.54
     nrows=4
@@ -195,7 +198,7 @@ if MakeGalView:
     )
     cbar.set_label('[Fe/H]', rotation=270, labelpad=15)
     
-    plt.savefig('./GalaxyCoordsFeHBinnedDWD.png', dpi=DPI)
+    plt.savefig('./GalaxyCoordsFeHBinnedDWDLISAOnly.png', dpi=DPI)
     
 
 
@@ -207,21 +210,21 @@ if LEGWORKStepQ:
     m_1    = (df['mass1']).to_numpy() * u.Msun
     m_2    = (df['mass2']).to_numpy() * u.Msun
     dist   = (df['RRelkpc']).to_numpy() * u.kpc
-    f_orb = (1/(df['porb']*24.*60*60)).to_numpy() * u.Hz
-    ecc   = np.zeros(NSys)
+    f_orb = (1/(df['PSetTodayHours']*60*60)).to_numpy() * u.Hz
+    ecc   = np.zeros(n_values)
     
     sources = source.Source(m_1=m_1, m_2=m_2, ecc=ecc, dist=dist, f_orb=f_orb)
-    snr = sources.get_snr(verbose=True)
+    snr     = sources.get_snr(verbose=True)
     
-    cutoff = -0.2
+    cutoff = 7
     
     detectable_threshold = cutoff
-    detectable_sources = sources.snr > cutoff
+    detectable_sources   = sources.snr > cutoff
     print("{} of the {} sources are detectable".format(len(sources.snr[detectable_sources]), n_values))
     
     # create the same plot but set `show=False`
     fig, ax = sources.plot_source_variables(xstr="f_orb", ystr="snr", disttype="kde", log_scale=(True, True),
-                                            fill=True, show=False, which_sources=sources.snr > 0, figsize=(10, 8))
+                                            fill=True, show=False, which_sources=sources.snr > 7, figsize=(10, 8))
     
     #ax.set_aspect(0.8)
     
@@ -230,5 +233,67 @@ if LEGWORKStepQ:
     frequency_range = np.logspace(np.log10(2e-6), np.log10(2e-1), 1000) * u.Hz
     vis.plot_sensitivity_curve(frequency_range=frequency_range, fig=fig, ax=right_ax,fill=False)
     
-    plt.savefig('./SensitivityCurve.png')
+    # Adjust layout to prevent cropping
+    fig.tight_layout()
+    
+    fig.savefig('./SensitivityCurveLISAOnly.png', bbox_inches='tight')
 
+if AnimationStepQ:
+    
+    # Ensure the output directory exists
+    output_dir = './Frames/'
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Load the galaxy data
+    data = df
+    
+    # Extract X, Y, Z coordinates
+    points = data[['Xkpc', 'Ykpc', 'Zkpc']].values
+    
+    # Create a PyVista point cloud
+    point_cloud = pv.PolyData(points)
+    
+    # Initialize the plotter
+    plotter = pv.Plotter(off_screen=True, window_size=(800, 600))
+    plotter.set_background('black')
+    
+    # Add the point cloud to the plotter with styling
+    plotter.add_mesh(
+        point_cloud,
+        color='white',
+        point_size=0.5,
+        render_points_as_spheres=True,
+        opacity=0.8,
+        )
+    
+    # Camera and animation settings
+    num_frames = 360  # Total number of frames
+    fps = 30  # Frames per second
+    radius = np.max(np.linalg.norm(points[:, :2], axis=1)) * 1.2  # Orbit radius
+    elevation_angle = np.radians(30)  # Elevation angle above the galactic plane
+    angles = np.linspace(0, 4 * np.pi, num_frames)  # Two full orbits
+    
+    # Generate and save each frame
+    for i, angle in enumerate(angles):
+        # Calculate camera position
+        x = radius * np.cos(angle) * np.cos(elevation_angle)
+        y = radius * np.sin(angle) * np.cos(elevation_angle)
+        z = radius * np.sin(elevation_angle)
+        
+        # Update camera settings
+        plotter.camera_position = [
+            (x, y, z),  # Camera position
+            (0, 0, 0),  # Look at the galactic center
+            (0, 0, 1),  # Up direction
+            ]
+        plotter.camera.view_angle = 60  # Human eye field of view
+        
+        
+        # Render and save the frame
+        filename = os.path.join(output_dir, f'frame_{i:04d}.png')
+        plotter.show(screenshot=filename, auto_close=False)
+        plotter.clear()  # Clear the plotter for the next frame
+        sys.exit()
+    # Close the plotter after rendering
+    plotter.close()
