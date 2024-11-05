@@ -15,7 +15,7 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.interpolate import UnivariateSpline
 from astropy import constants as const
 from astropy import units as u
-
+import legwork.source as source
 from scipy.optimize import root
 import sys
 import os
@@ -300,7 +300,7 @@ RGravSun  = 2.*GNewtCGS*MSunToG/CLightCGS**2
 RhoConv   = (MSunToG/RSunToCm**3)
 
 #GW constants
-ADotGWPreFacCGS = (64./5)*((CLightCGS)**(-2))*(GNewtCGS*MSunToG/(RSunToCm*CLightCGS))**3
+ADotGWPreFacCGS = (256./5)*((CLightCGS)**(-2))*(GNewtCGS*MSunToG/(RSunToCm*CLightCGS))**3
 TauGWPreFacMyr  = (RSunToCm/ADotGWPreFacCGS)/MyrToSec
 
 MRWDMset,MRWDRSet    = np.split(np.loadtxt(CodeDir + '/WDData/MRRel.dat'),2,axis=1)
@@ -330,12 +330,18 @@ def ABinRSunPre(MDonor, MAccretor, POrbYr):
 ABinRSun = np.vectorize(ABinRSunPre)
 
 
-#The GW timescale in megayears
+#The GW inspiral time in megayears
 def TGWMyrPre(M1MSun, M2MSun, aRSun):
     Res = TauGWPreFacMyr/((M1MSun + M2MSun)*M1MSun*M2MSun/aRSun**4)
     return Res
 TGWMyr = np.vectorize(TGWMyrPre)
-XXX
+
+#The orbital separation after a given GW inspiral time
+def APostGWRSunPre(M1MSun, M2MSun, AInitRSun, TGWInspMyr):
+    TGWFull = TGWMyr(M1MSun, M2MSun, AInitRSun)
+    Res     = AInitRSun*(1 - TGWInspMyr/TGWFull)**0.25
+    return Res
+APostGWRSun = np.vectorize(APostGWRSunPre)
 
 #Roche lobe radius/BinA -- Eggeleton's formula
 def fRL(q):
@@ -358,7 +364,7 @@ if ModelParams['ImportSimulation']:
     ACutRSunPre     = 6     #Initial cut for all binaries
     LISAPCutHours   = 0.5*(1/1.e-4)/(3600.)  #1/e-4 Hz + remember that GW frequency is 2X the orbital frequency
     MaxTDelay       = 14000    
-    RepresentDWDsBy = 10000    #Represent the present-day LISA candidates by this nubmer of binaries
+    RepresentDWDsBy = 100000   #Represent the present-day LISA candidates by this nubmer of binaries
     DeltaTGalMyr    = 50       #Time step resolution in the Galactic SFR
     
     #General quantities
@@ -391,9 +397,9 @@ if ModelParams['ImportSimulation']:
     #Point mass GW inspiral time from LISA band (or current location if we are in the band) to RLO    
     DWDSetPre['TGWMyrLISABandToRLOSet']  = TGWMyr(DWDSetPre['mass1'],DWDSetPre['mass2'],np.minimum(DWDSetPre['aLISABandRSun'],DWDSetPre['semiMajor'])) - TGWMyr(DWDSetPre['mass1'],DWDSetPre['mass2'],DWDSetPre['aRLORSun'])
     #Time from DMS formation to the DWD entering the LISA band
-    DWDSetPre['AbsTimeToLISAMyr']    = DWDSetPre['time'] + DWDSetPre['TGWMyrToLISABandSet']
+    DWDSetPre['AbsTimeToLISAMyr']        = DWDSetPre['time'] + DWDSetPre['TGWMyrToLISABandSet']
     #Time from DMS formation to the DWD RLO
-    DWDSetPre['AbsTimeToLISAEndMyr'] = DWDSetPre['AbsTimeToLISAMyr'] + DWDSetPre['TGWMyrLISABandToRLOSet']
+    DWDSetPre['AbsTimeToLISAEndMyr']     = DWDSetPre['AbsTimeToLISAMyr'] + DWDSetPre['TGWMyrLISABandToRLOSet']
     
     #Select DWDs that: 1)Do not merge upon formation, 2) Will reach the LISA band within the age of the Universe
     DWDSet                       = DWDSetPre.loc[(DWDSetPre.semiMajor > DWDSetPre.aRLORSun) & (DWDSetPre.AbsTimeToLISAMyr < MaxTDelay)].sort_values('AbsTimeToLISAMyr')
@@ -489,8 +495,8 @@ if ModelParams['ImportSimulation']:
     PresentDayDWDCandFinDF = pd.concat(PresentDayDWDCandFinSet, ignore_index=True)
     
     #Find present-day periods:
-    for 
-    
+    PresentDayDWDCandFinDF['ATodayRSun']     = APostGWRSun(PresentDayDWDCandFinDF['mass1'], PresentDayDWDCandFinDF['mass2'], PresentDayDWDCandFinDF['semiMajor'], PresentDayDWDCandFinDF['SubBinMidAge'] - PresentDayDWDCandFinDF['time'])
+    PresentDayDWDCandFinDF['PSetTodayHours'] = POrbYr(PresentDayDWDCandFinDF['mass1'],PresentDayDWDCandFinDF['mass2'], PresentDayDWDCandFinDF['ATodayRSun'])*YearToSec/(3600.)
             
     
 ######################################################
@@ -621,7 +627,27 @@ if ModelParams['ImportSimulation']:
 
 ResDF.to_csv('./FullGalaxyDWD.csv', index = False)
 
+#Export only LISA-visible DWDs
+if ModelParams['ImportSimulation']:
+    n_values = len(ResDF.index)
 
+    m_1    = (ResDF['mass1']).to_numpy() * u.Msun
+    m_2    = (ResDF['mass2']).to_numpy() * u.Msun
+    dist   = (ResDF['RRelkpc']).to_numpy() * u.kpc
+    f_orb = (1/(ResDF['PSetTodayHours']*60*60)).to_numpy() * u.Hz
+    ecc   = np.zeros(n_values)
+    
+    sources = source.Source(m_1=m_1, m_2=m_2, ecc=ecc, dist=dist, f_orb=f_orb)
+    snr     = sources.get_snr(verbose=True)
+    
+    cutoff = 7
+    
+    detectable_threshold = cutoff
+    detectable_sources   = sources.snr > cutoff
+    
+    LISADF = ResDF[detectable_sources]
+    
+    LISADF.to_csv('./FullGalaxyDWDLISAOnly.csv', index = False)
 
 
     
