@@ -359,13 +359,22 @@ def fRLDonor(MDonorMSun,MAccretorMSun):
 if ModelParams['ImportSimulation']:
     #Import data
     #Parameters
-    RunWave         = 'fiducial'
-    FileName        = './Simulations/COSMIC_T0.hdf5'
-    ACutRSunPre     = 6     #Initial cut for all binaries
-    LISAPCutHours   = 0.5*(1/1.e-4)/(3600.)  #1/e-4 Hz + remember that GW frequency is 2X the orbital frequency
+    #RunWave         = 'fiducial'
+    RunWave         = 'porb_log_uniform'
+    #RunWave         = 'uniform_ecc'
+    #RunWave         = 'qmin_01'
+    #Code            = 'COSMIC'
+    #Code            = 'ComBinE'
+    Code            = 'COMPAS'
+    FileName        = './Simulations/' + RunWave + '/' + Code + '_T0.hdf5'
+    OutputSubfolder = 'ICVariations'
+    CurrOutDir      = './ProcessedSimulations/' + OutputSubfolder + '/' + RunWave + '/'
+    os.makedirs(CurrOutDir,exist_ok=True)
+    ACutRSunPre     = 6     #Initial cut for all DWD binaries
+    LISAPCutHours   = (2/1.e-4)/(3600.)  #1/e-4 Hz + remember that GW frequency is 2X the orbital frequency
     MaxTDelay       = 14000    
-    RepresentDWDsBy = 100000   #Represent the present-day LISA candidates by this nubmer of binaries
-    DeltaTGalMyr    = 50       #Time step resolution in the Galactic SFR
+    RepresentDWDsBy = 500000     #Represent the present-day LISA candidates by this nubmer of binaries
+    DeltaTGalMyr    = 50         #Time step resolution in the Galactic SFR
     
     #General quantities
     MassNorm        = get_mass_norm(RunWave)
@@ -375,7 +384,10 @@ if ModelParams['ImportSimulation']:
     
     #Pre-process simulations
     Sims                          = SimData[0]
-    DWDSetPre                     = Sims.loc[(Sims.type1.isin([21,22,23])) & (Sims.type2.isin([21,22,23])) & (Sims.semiMajor > 0) & (Sims.semiMajor < ACutRSunPre)].groupby('ID', as_index=False).first() #DWD binaries at the moment of formation with a<8RSun
+    if not (Code == 'ComBinE'):
+        DWDSetPre                     = Sims.loc[(Sims.type1.isin([21,22,23])) & (Sims.type2.isin([21,22,23])) & (Sims.semiMajor > 0) & (Sims.semiMajor < ACutRSunPre)].groupby('ID', as_index=False).first() #DWD binaries at the moment of formation with a<6RSun
+    else:
+        DWDSetPre                     = Sims.loc[(Sims.type1 == 2) & (Sims.type2 == 2) & (Sims.semiMajor > 0) & (Sims.semiMajor < ACutRSunPre)].groupby('ID', as_index=False).first() #DWD binaries at the moment of formation with a<8RSun
     #General properties
     #Lower-mass WD radius
     DWDSetPre['RDonorRSun']       = RWD(np.minimum(DWDSetPre['mass1'],DWDSetPre['mass2']))
@@ -418,6 +430,7 @@ if ModelParams['ImportSimulation']:
     SubBinDWDIDDict     = {}
     #Go over each Besancon bin
     for iBin in range(len(BesanconParamsDefined['BinName'])):
+        print('Step 1: ', iBin, '/',(len(BesanconParamsDefined['BinName'])))
         #Bin start and end times
         TGalBinStart = BesanconParamsDefined['AgeMin'][iBin]
         TGalBinEnd   = BesanconParamsDefined['AgeMax'][iBin]
@@ -457,7 +470,8 @@ if ModelParams['ImportSimulation']:
     #Make a DF for the present-day population properties
     SubBinDF = pd.DataFrame(SubBinProps)
     #Export the population properties
-    SubBinDF.to_csv('./GalaxyLISACandidateStats.csv', index = False)
+
+    SubBinDF.to_csv(CurrOutDir + '/GalaxyLISACandidateStats.csv', index = False)
     
     #Get overall present-day properties
     #Total real number of LISA sources
@@ -574,6 +588,8 @@ FeHFin   = np.zeros(NGalDo)
 
 
 for i in range(NGalDo):
+    if i % 100 == 0:
+        print('Step 2: ', i, '/',NGalDo)
     if ModelParams['ImportSimulation']:
         ResCurr     = DrawStar('Besancon', int(PresentDayDWDCandFinDF.iloc[i]['BinID']) + 1)
         AgeFin[i]   = PresentDayDWDCandFinDF.iloc[i]['SubBinMidAge']
@@ -625,7 +641,7 @@ ResDF    = pd.DataFrame(ResDict)
 if ModelParams['ImportSimulation']:
     ResDF      = pd.concat([ResDF, PresentDayDWDCandFinDF], axis=1)
 
-ResDF.to_csv('./FullGalaxyDWD.csv', index = False)
+ResDF.to_csv(CurrOutDir + '/FullGalaxyDWD.csv', index = False)
 
 #Export only LISA-visible DWDs
 if ModelParams['ImportSimulation']:
@@ -647,7 +663,7 @@ if ModelParams['ImportSimulation']:
     
     LISADF = ResDF[detectable_sources]
     
-    LISADF.to_csv('./FullGalaxyDWDLISAOnly.csv', index = False)
+    LISADF.to_csv(CurrOutDir + '/FullGalaxyDWDLISAOnly.csv', index = False)
 
 
     
