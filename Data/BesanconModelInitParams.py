@@ -35,3 +35,8 @@ BesanconParamsDefined = {
      }
 
 
+Alpha  = 78.9*(np.pi/180)
+Beta   = 3.6*(np.pi/180)
+Gamma  = 91.3*(np.pi/180)
+
+

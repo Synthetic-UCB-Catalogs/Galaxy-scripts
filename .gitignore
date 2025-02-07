@@ -1,0 +1,17 @@
+!bash
+
+# 1) Ignore everything by default
+*
+
+# 2) Don't ignore the .gitignore file itself
+!.gitignore
+
+# 3) Unignore (include) everything in the root directory
+!/*
+
+# 4) Re-ignore all subdirectories
+/*/
+
+# 5) Unignore some directories
+#!Data
+#!WDData

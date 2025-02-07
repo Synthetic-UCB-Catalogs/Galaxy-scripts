@@ -39,8 +39,8 @@ SimTypesUse   = ['MS', 'DWDCand', 'DWDLISA']
 PlotSetName   = '20241107ICs'
 
 #RunWave         = 'fiducial'
-RunWave         = 'porb_log_uniform'
-#RunWave         = 'uniform_ecc'
+#RunWave         = 'porb_log_uniform'
+RunWave         = 'uniform_ecc'
 #RunWave         = 'qmin_01'
 #Code            = 'COSMIC'
 #Code            = 'ComBinE'
