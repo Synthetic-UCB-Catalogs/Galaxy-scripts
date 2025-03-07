@@ -1,5 +1,6 @@
 Output description:
 - Each line may be seen a DWD representative of many actual present-day DWDs; the code keeps track of the total number of the actual systems
+
 Columns:
 - Bin: Galactic bin as defined in the Besancon model
 - Age: The age of the DWD in Myr
