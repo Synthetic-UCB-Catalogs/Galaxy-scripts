@@ -1,37 +1,37 @@
 Output description:
--Each line may be seen a DWD representative of many actual present-day DWDs; the code keeps track of the total number of the actual systems
+- Each line may be seen a DWD representative of many actual present-day DWDs; the code keeps track of the total number of the actual systems
 Columns:
--Bin: Galactic bin as defined in the Besancon model
--Age: The age of the DWD in Myr
--FeH: Progenitor metallicity (the binary evolution assumed solar metallicity and this is just a tag showing the actual metallicity the system should have had)
--Xkpc, Ykpc, Zkpc: absolute Cartesian Galactic position of the binary (Galactic center is at the origin)
--Rkpc, Th: polar coordinates that can be used instead of Xkpc, Ykpc
--XRelkpc, YRelkpc, ZRelkpc, RRelkpc: same as above, but relative to the Sun
--Galb, Gall: Galactictocentric angles
--ID: the ID of the binary simulation
--UID: the UID (unique ID acress runs) of the binary simulation
--time: time in Myr or the DWD binary formation (check)
--event: event type (binCodex classification) preceding the DWD binary formation
--semiMajor, eccentricity: semimajor axis (in RSun) and eccentricity at the moment of DWD formation
--type1, mass1, radius1, Teff1, massHeCore1: WD type that came from the former primary, its mass (in MSun), radius (in RSun), effective temperature at formation (in K), He core mass (in MSun)
--type2, mass2, radius2, Teff2, massHeCore2: same, for the WD that came from the former secondary
--RDonorRSun: the radius of the WD (in RSun) that will eventually become the donor after the GW inspiral
--qSet: mDonor/mAccretor once mass transfer starts
--aRLORSun: Orbital separation (in RSun) for Roche lobe overflow to start
--PSetDWDFormHours: Orbital period (in hours) at the moment of DWD binary formation
--PSetRLOHours: Orbital period (in hours) at the moment of Roche lobe overflow
--TGWMyrSetTot: Total time (in Myr) it would take for two point masses to spiral in starting from the DWD binary orbit
--aLISABandRSun: The orbital separation of the binary (in RSun) once it enters the LISA band
--TGWMyrToLISABandSet: The time it takes for the binary to enter the LISA band (in Myr), set to 0 if it is already in the LISA band
--TGWMyrLISABandToRLOSet: The time it takes for the binary between entering the LISA band (or, if inside, from its current time) till Roche lobe overflow (in Myr)
--AbsTimeToLISAMyr: Absolute time when the binary enters the LISA band, starting from ZAMS (in Myr, check)
--AbsTimeToLISAEndMyr: Absolute time when the binary starts the RLO, relative to ZAMS (in Myr)
--SubBinAbsID: Galactic bins (column 1) are split into sub-bins with a smaller timestep - this is the absolute ID of such sub-bin
--SubBinLocalID: The number of sub-bin within the current bin
--BinID: Again the Galactic bin, counting from 0
--SubBinMidAge: the median age (in Myr) of the current Galactic sub-bin
--SubBinDeltaT: the time interval of the current sub-bin
--SubBinNDWDsCode: how many unique simulated representative DWDs are there in the current sub-bin
--SubBinNDWDsReal: how many real DWD binaries have been produced by the current sub-bin
--ATodayRSun: present-day orbital separation (in RSun) of the DWD binary
--PSetTodayHours: present-day orbital period (in hourse) of the DWD binary
+- Bin: Galactic bin as defined in the Besancon model
+- Age: The age of the DWD in Myr
+- FeH: Progenitor metallicity (the binary evolution assumed solar metallicity and this is just a tag showing the actual metallicity the system should have had)
+- Xkpc, Ykpc, Zkpc: absolute Cartesian Galactic position of the binary (Galactic center is at the origin)
+- Rkpc, Th: polar coordinates that can be used instead of Xkpc, Ykpc
+- XRelkpc, YRelkpc, ZRelkpc, RRelkpc: same as above, but relative to the Sun
+- Galb, Gall: Galactictocentric angles
+- ID: the ID of the binary simulation
+- UID: the UID (unique ID acress runs) of the binary simulation
+- time: time in Myr or the DWD binary formation (check)
+- event: event type (binCodex classification) preceding the DWD binary formation
+- semiMajor, eccentricity: semimajor axis (in RSun) and eccentricity at the moment of DWD formation
+- type1, mass1, radius1, Teff1, massHeCore1: WD type that came from the former primary, its mass (in MSun), radius (in RSun), effective temperature at formation (in K), He core mass (in MSun)
+- type2, mass2, radius2, Teff2, massHeCore2: same, for the WD that came from the former secondary
+- RDonorRSun: the radius of the WD (in RSun) that will eventually become the donor after the GW inspiral
+- qSet: mDonor/mAccretor once mass transfer starts
+- aRLORSun: Orbital separation (in RSun) for Roche lobe overflow to start
+- PSetDWDFormHours: Orbital period (in hours) at the moment of DWD binary formation
+- PSetRLOHours: Orbital period (in hours) at the moment of Roche lobe overflow
+- TGWMyrSetTot: Total time (in Myr) it would take for two point masses to spiral in starting from the DWD binary orbit
+- aLISABandRSun: The orbital separation of the binary (in RSun) once it enters the LISA band
+- TGWMyrToLISABandSet: The time it takes for the binary to enter the LISA band (in Myr), set to 0 if it is already in the LISA band
+- TGWMyrLISABandToRLOSet: The time it takes for the binary between entering the LISA band (or, if inside, from its current time) till Roche lobe overflow (in Myr)
+- AbsTimeToLISAMyr: Absolute time when the binary enters the LISA band, starting from ZAMS (in Myr, check)
+- AbsTimeToLISAEndMyr: Absolute time when the binary starts the RLO, relative to ZAMS (in Myr)
+- SubBinAbsID: Galactic bins (column 1) are split into sub-bins with a smaller timestep - this is the absolute ID of such sub-bin
+- SubBinLocalID: The number of sub-bin within the current bin
+- BinID: Again the Galactic bin, counting from 0
+- SubBinMidAge: the median age (in Myr) of the current Galactic sub-bin
+- SubBinDeltaT: the time interval of the current sub-bin
+- SubBinNDWDsCode: how many unique simulated representative DWDs are there in the current sub-bin
+- SubBinNDWDsReal: how many real DWD binaries have been produced by the current sub-bin
+- ATodayRSun: present-day orbital separation (in RSun) of the DWD binary
+- PSetTodayHours: present-day orbital period (in hourse) of the DWD binary
