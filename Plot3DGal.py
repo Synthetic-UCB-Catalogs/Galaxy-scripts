@@ -62,11 +62,11 @@ dfPointers  = {SimTypesUse[iType]:iType  for iType in range(len(SimTypesUse))}
 #Stats printout
 if ('DWDCand' in SimTypesUse) or ('DWDLISA' in SimTypesUse):
     statsDF = pd.read_csv(GalStatsPath)
-    print('Galactic number of present-day LISA candidates: ', int(np.sum(statsDF['SubBinNDWDsReal'])))
-    DWDCands = int(np.sum(statsDF['SubBinNDWDsReal']))
+    print('Galactic number of present-day LISA candidates: ', int(np.sum(statsDF['SubComponentNDWDsReal'])))
+    DWDCands = int(np.sum(statsDF['SubComponentNDWDsReal']))
     if ('DWDLISA' in SimTypesUse):
-        print('Galactic number of present-day LISA-observable DWDs: ',  int(np.sum(statsDF['SubBinNDWDsReal'])*(len(dfSet[dfPointers['DWDLISA']].index))/(len(dfSet[dfPointers['DWDCand']].index))))
-        DWDLISA =  int(np.sum(statsDF['SubBinNDWDsReal'])*(len(dfSet[dfPointers['DWDLISA']].index))/(len(dfSet[dfPointers['DWDCand']].index)))
+        print('Galactic number of present-day LISA-observable DWDs: ',  int(np.sum(statsDF['SubComponentNDWDsReal'])*(len(dfSet[dfPointers['DWDLISA']].index))/(len(dfSet[dfPointers['DWDCand']].index))))
+        DWDLISA =  int(np.sum(statsDF['SubComponentNDWDsReal'])*(len(dfSet[dfPointers['DWDLISA']].index))/(len(dfSet[dfPointers['DWDCand']].index)))
 
 
 #For similar numbers in plotting
@@ -236,7 +236,7 @@ if MakeGalView:
         cm_to_inch = 1 / 2.54
         nrows=4
         ncols=3
-        bin_values = sorted(df['Bin'].unique())
+        bin_values = sorted(df['Component'].unique())
         n_bins = len(bin_values)
         
         fig, axes = plt.subplots(
@@ -252,8 +252,8 @@ if MakeGalView:
         
         Labels = np.array(['Thin Disk 1', 'Thin Disk 2','Thin Disk 3','Thin Disk 4','Thin Disk 5','Thin Disk 6','Thin Disk 7','Thick Disk','Halo','Bulge'])
         for i, (bin_value, ax) in enumerate(zip(bin_values, axes)):
-            # Filter DataFrame for the current 'Bin' value
-            df_bin = df[df['Bin'] == bin_value]
+            # Filter DataFrame for the current 'Component' value
+            df_bin = df[df['Component'] == bin_value]
         
             # Create scatter plot
             scatter = ax.scatter(
@@ -340,7 +340,7 @@ if DWDAnalyse:
     
         # Create scatter plot
         scatter = ax.scatter(
-            df['SubBinMidAge'],
+            df['SubComponentMidAge'],
             df['PSetTodayHours'],
             c=df['M_tot'],
             cmap=cmap,
@@ -387,7 +387,7 @@ if DWDAnalyse:
     
         # Create scatter plot
         scatter = ax.scatter(
-            df['SubBinMidAge'],
+            df['SubComponentMidAge'],
             df['qSet'],
             c=df['M_tot'],
             cmap=cmap,

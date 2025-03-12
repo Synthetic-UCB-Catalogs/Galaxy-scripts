@@ -6,26 +6,21 @@ Created on Wed Jun  5 18:05:24 2024
 @author: alexey
 """
 
+import os, sys
 import numpy as np
 import pandas as pd
 import scipy as sp
 import random
 import h5py
-from scipy.interpolate import RegularGridInterpolator
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import RegularGridInterpolator, UnivariateSpline
+from scipy.optimize import root
 from astropy import constants as const
 from astropy import units as u
 import legwork.source as source
-from scipy.optimize import root
-import sys
-import os
+
 CodeDir       = os.path.dirname(os.path.abspath(__file__))
 sys.path[1:1] = [os.path.join(CodeDir, 'PyModules'), os.path.join(CodeDir, 'Data'), os.path.join(CodeDir, 'Simulations')]
-<<<<<<< HEAD
-from BesanconModelInitParams import BesanconParamsDefined
-=======
 from BesanconModelInitParams import BesanconParamsDefined, Alpha, Beta, Gamma
->>>>>>> 4b76607d010229201a99af2541f8bcc4f5877372
 from GalaxyParameters import GalaxyParams
 from get_mass_norm import get_mass_norm
 from rapid_code_load_T0 import load_T0_data

@@ -58,17 +58,17 @@ def Sample1D(Hr,Hz):
     return ResDict
 
  
-def Sample1DPop(NBin,Hr,Hz):
-    RRandSet = np.random.uniform(0, 1, NBin)
-    ZRandSet = np.random.uniform(0, 1, NBin)
-    ZSignSet = np.sign(np.random.uniform(0, 2, NBin) - 1)
-    RSet     = np.asarray([RCDFInv(RRandSet[i],Hr) for i in range(NBin)],dtype=float)
-    ZSet     = np.asarray([zCDFInv(ZRandSet[i],Hz) for i in range(NBin)],dtype=float)*ZSignSet
-    ThSet    = np.random.uniform(0, 2.*np.pi, NBin)
+def Sample1DPop(NComponent,Hr,Hz):
+    RRandSet = np.random.uniform(0, 1, NComponent)
+    ZRandSet = np.random.uniform(0, 1, NComponent)
+    ZSignSet = np.sign(np.random.uniform(0, 2, NComponent) - 1)
+    RSet     = np.asarray([RCDFInv(RRandSet[i],Hr) for i in range(NComponent)],dtype=float)
+    ZSet     = np.asarray([zCDFInv(ZRandSet[i],Hz) for i in range(NComponent)],dtype=float)*ZSignSet
+    ThSet    = np.random.uniform(0, 2.*np.pi, NComponent)
     XSet     = RSet*np.cos(ThSet)
     YSet     = RSet*np.sin(ThSet)
-    AgeSet   = np.random.uniform(0, 12, NBin)
-    IDSet    = np.arange(NBin) + 1    
+    AgeSet   = np.random.uniform(0, 12, NComponent)
+    IDSet    = np.arange(NComponent) + 1    
     
     ResDict  = {'ID':IDSet, 'Ages': AgeSet, 'Xkpc': XSet, 'Ykpc': YSet, 'Zkpc': ZSet, 'Rkpc': RSet, 'Th': ThSet}
     ResDF    = pd.DataFrame(ResDict)    
@@ -77,11 +77,11 @@ def Sample1DPop(NBin,Hr,Hz):
 ExportTable = False
 
 if ExportTable:
-    NBin = 10**4
+    NComponent = 10**4
     Hr   = 4
     Hz   = 0.5
     
-    Res = Sample1DPop(NBin,Hr,Hz)
+    Res = Sample1DPop(NComponent,Hr,Hz)
     
     Res.to_csv('./GalTest.csv', index = False)
                 

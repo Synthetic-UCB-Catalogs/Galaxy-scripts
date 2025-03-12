@@ -1,7 +1,7 @@
 Output description:
 - Each line may be seen a DWD representative of many actual present-day DWDs; the code keeps track of the total number of the actual systems
 Columns:
-- Bin: Galactic bin as defined in the Besancon model
+- Component: Galactic component as defined in the Besancon model
 - Age: The age of the DWD in Myr
 - FeH: Progenitor metallicity (the binary evolution assumed solar metallicity and this is just a tag showing the actual metallicity the system should have had)
 - Xkpc, Ykpc, Zkpc: absolute Cartesian Galactic position of the binary (Galactic center is at the origin)
@@ -26,12 +26,12 @@ Columns:
 - TGWMyrLISABandToRLOSet: The time it takes for the binary between entering the LISA band (or, if inside, from its current time) till Roche lobe overflow (in Myr)
 - AbsTimeToLISAMyr: Absolute time when the binary enters the LISA band, starting from ZAMS (in Myr, check)
 - AbsTimeToLISAEndMyr: Absolute time when the binary starts the RLO, relative to ZAMS (in Myr)
-- SubBinAbsID: Galactic bins (column 1) are split into sub-bins with a smaller timestep - this is the absolute ID of such sub-bin
-- SubBinLocalID: The number of sub-bin within the current bin
-- BinID: Again the Galactic bin, counting from 0
-- SubBinMidAge: the median age (in Myr) of the current Galactic sub-bin
-- SubBinDeltaT: the time interval of the current sub-bin
-- SubBinNDWDsCode: how many unique simulated representative DWDs are there in the current sub-bin
-- SubBinNDWDsReal: how many real DWD binaries have been produced by the current sub-bin
+- SubComponentAbsID: Galactic components (column 1) are split into sub-components with a smaller timestep - this is the absolute ID of such sub-component
+- SubComponentLocalID: The number of sub-component within the current component
+- ComponentID: Again the Galactic component, counting from 0
+- SubComponentMidAge: the median age (in Myr) of the current Galactic sub-component
+- SubComponentDeltaT: the time interval of the current sub-component
+- SubComponentNDWDsCode: how many unique simulated representative DWDs are there in the current sub-component
+- SubComponentNDWDsReal: how many real DWD binaries have been produced by the current sub-component
 - ATodayRSun: present-day orbital separation (in RSun) of the DWD binary
 - PSetTodayHours: present-day orbital period (in hourse) of the DWD binary
