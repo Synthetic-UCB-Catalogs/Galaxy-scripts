@@ -1,5 +1,5 @@
 import os
-import h5py
+import h5py as h5
 import pandas as pd
 import numpy as np
 import scipy.stats as ss
@@ -7,13 +7,22 @@ from utils import MWConsts
 
 
 class GalaxyModel():
-    def __init__(self, name): 
+    def __init__(self, name, Z=0.0142, fnameOutput=None, saveOutput=False, singleComponentToUse=None): 
         self.name = name
+        self.Z = Z
+        self.fnameOutput = self.GetFnameOutput(fnameOutput)
+        self.fpathOutput = os.path.abspath("ModelOutput/{}".format(self.fnameOutput))
+
+        self.saveOutput = saveOutput
         self.modelParams = self.GetModelParameters()
 
         self.SetOtherConstants()
         self.components = self.CreateComponents()
         self.componentWeights = self.CalculateGalacticComponentMassFractions()
+        if singleComponentToUse is not None:
+            self.componentWeights = np.zeros_like(self.componentWeights) 
+            self.componentWeights[singleComponentToUse] = 1
+
 
     # Function passed to children
     def GetModelParameters(self):
@@ -25,20 +34,26 @@ class GalaxyModel():
     def CreateComponents(self):
         pass
 
-    def CalculateGalacticComponentMassFractions(self):
+    def CalculateGalacticComponentMassFractions(self, singleComponentToUse):
         pass
 
+    def GetFnameOutput(self, fnameOutput):
+        if fnameOutput is not None:
+            return fnameOutput
+        else:
+            return "SampledGalacticLocations_{}_{}.h5".format(self.name, self.Z)
 
     # Functions that apply for all Galaxy models
-    def GetSamples(self, nBinaries, Z, redrawSamples):
-        fnameSamples = os.path.abspath("GalaxyModels/ModelOutput/Samples_{}_n={}_Z={}.csv".format(self.name, nBinaries, Z))
-        if redrawSamples or not os.path.isfile(fnameSamples):
-            return self.DrawSamples(nBinaries, Z)
+    def GetSamples(self, nBinaries):
+        if os.path.isfile(self.fpathOutput):
+            print("Importing data from existing file: {}".format(self.fnameOutput))
+            return h5.File(self.fpathOutput, 'r')['data']
         else:
-            return 
+            print("Generating new data, saving to: {}".format(self.fnameOutput))
+            return self.DrawSamples(nBinaries)
 
 
-    def DrawSamples(self, nSystems, Z):
+    def DrawSamples(self, nSystems):
 
         # the component weight is the mass fraction multiplied by the metallicity weight
         component_weights = self.componentWeights
@@ -54,7 +69,7 @@ class GalaxyModel():
             # Get the metallicity factor for the Component weight
             mean_FeH, std_FeH = self.components[ii].mean_FeH, self.components[ii].std_FeH
             # This is a constant extra weight for this Component
-            metallicity_weight = ss.norm.pdf(x=Z, loc=mean_FeH, scale=std_FeH)
+            metallicity_weight = ss.norm.pdf(x=self.Z, loc=mean_FeH, scale=std_FeH)
             component_weights[ii] = component_weights[ii] * metallicity_weight
 
             # Get the r,z values randomly sampled, weighted by the density distribution of the component
@@ -87,9 +102,16 @@ class GalaxyModel():
         b_gal, l_gal, d_gal = bld_gal
         t_birth = t 
 
-        # TODO: remove which_component later
-        # TODO: add an hdf5 save function
-        return b_gal, l_gal, d_gal, t_birth, which_component
+        drawn_samples = np.vstack((b_gal, l_gal, d_gal, t_birth, which_component))
+        # Reorder the drawn_samples by distance, closest first
+        drawn_samples = drawn_samples[:,d_gal.argsort()]
+
+        if self.saveOutput:
+            print(self.fnameOutput)
+            with h5.File(self.fpathOutput, 'w') as f:
+                f.create_dataset('data', data=drawn_samples)
+
+        return drawn_samples
 
 
 

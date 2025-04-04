@@ -9,7 +9,7 @@ Created on Wed Oct 16 19:41:43 2024
 import numpy as np
 import pandas as pd
 from utils import MWConsts
-from .GalaxyModelClass import GalaxyModel, GalaxyComponent
+from GalaxyModelClass import GalaxyModel, GalaxyComponent
 
 
 # For Besancon model, see the full description at https://model.obs-besancon.fr/modele_descrip.php
@@ -31,7 +31,7 @@ class BesanconModel(GalaxyModel):
         self.mean_FeH        =  np.array([0.01,             0.03,         0.03,         0.01,         -0.07,        -0.14,        -0.37,        -0.78,            -1.78,    0.00],            dtype='float64')       
         self.std_FeH         =  np.array([0.12,             0.12,         0.10,         0.11,         0.18,         0.17,         0.20,         0.30,             0.50,     0.40],            dtype='float64')       
         self.dFedR           =  np.array([-0.07,            -0.07,        -0.07,        -0.07,        -0.07,        -0.07,        -0.07,        0,                0,        0],               dtype='float64')       
-        self.Rho0Array       =  np.array([1.888e-3,         5.04e-3,      4.11e-3,      2.84e-3,      4.88e-3,      5.02e-3,      9.32e-3,      2.91e-3,          9.2e-6],  dtype='float64')  #                      Czekaj2014
+        self.Rho0Array       =  np.array([1.888e-3,         5.04e-3,      4.11e-3,      2.84e-3,      4.88e-3,      5.02e-3,      9.32e-3,      2.91e-3,          9.2e-6],  dtype='float64')  # Czekaj2014
         self.epsArrayThin    =  np.array([0.0140,           0.0268,       0.0375,       0.0551,       0.0696,       0.0785,       0.0791],      dtype='float64')                                                     
         self.nComponents = len(self.componentNames)
 

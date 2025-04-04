@@ -102,6 +102,7 @@ def generateSimulatedDwdGalaxy(
     P_today = P_from_A(m1, m2, a_today)                             # yr
 
 
+    print(P_today)
 
 
 
@@ -211,29 +212,6 @@ def generateSimulatedDwdGalaxy(
 
 
 if __name__ == "__main__":
-    generateSimulatedDwdGalaxy(
-            #galaxyModelName='Besancon', importSimulation="simulated_binary_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_T0.hdf5")
-        galaxyModelName='Besancon') 
+    generateSimulatedDwdGalaxy(galaxyModelName='Besancon', importSimulation="simulated_binary_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_T0.hdf5")
+    #generateSimulatedDwdGalaxy(galaxyModelName='Besancon') 
 
-    # Model parameters and options
-    # ModelParams = {
-    #    }
-
-    # Galaxy model can be 'Besancon'
-    # if ModelParams['GalaxyModel'] == 'Besancon':
-    #    GalaxyModelParams = BesanconParams
-    #    GalFunctionsDict = {'Besancon': GalaxyModelParams['RhoFunction']}
-
-    # Find the norm for the different Galactic components, and define the weights
-    # Store it in # NormCSet - the normalisation constant array
-
-    # def print_structure(name, obj):
-    #    indent = '  ' * (name.count('/') - 1)
-    #    if isinstance(obj, h5py.Dataset):
-    #        print(f"{indent}- Dataset: {name} | Shape: {obj.shape} | Type: {obj.dtype}")
-    #    elif isinstance(obj, h5py.Group):
-    #        print(f"{indent}- Group: {name}")
-
-# CodeDir       = os.path.dirname(os.path.abspath(__file__))
-# sys.path[1:1] = [os.path.join(CodeDir, 'PyModules'), os.path.join(CodeDir, 'Data'), os.path.join(CodeDir, 'Simulations')]
-# from BesanconModel import BesanconParams, Alpha, Beta, Gamma
