@@ -1,40 +1,36 @@
-import os, sys
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Oct 16 19:41:43 2024
+
+@author: alexey, reinhold
+"""
+
+import os
 import numpy as np
-import pandas as pd
-import scipy as sp
-import scipy.stats as ss
-import random
-import h5py as h5
-from scipy.interpolate import RegularGridInterpolator, UnivariateSpline
-from scipy.optimize import root
-import legwork.source as source
-#from GalaxyModels.getGalaxyModel import getGalaxyModel
-#from Simulations.getPopSynthProperties import getSimulationProperties
-#from utils import MWConsts, P_from_A, calculateSeparationAfterSomeTime, inspiral_time
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from BesanconModel import BesanconModel
+# TODO: implement other models
 
 
 def getGalaxyModel(galaxyModelName, *args, **kwargs):
     if galaxyModelName == "Besancon":
-        # an instance of the specific GalaxyModel
         return BesanconModel("Besancon", *args, **kwargs)
     else:
         raise Exception("Model not configured")
-    # TODO: implement other models
 
 
 def generateSimulatedGalaxy(
-    galaxyModelName,                 # (str) The name of the Galaxy Model to use
-    nSamples=1e6,                    # (int) Number of stars to sample 
-    Z=0.0142,                        # (float) Metallicity of samples
-    fnameOutput=None,                # (str) File name to save (only relevant if saveOutput is true)
-    saveOutput=False,                # (bool) Whether to save the output to a file (if new samples are drawn)
-    makePlot=False,                  # (bool) Whether to generate a 3D plot of the data
-    singleComponentToUse=None,       # (int) Number of the single component to model (for visualizations). If None, use full model.
-):
+        galaxyModelName,                 # (str) The name of the Galaxy Model to use
+        nSamples=1e6,                    # (int) Number of stars to sample 
+        Z=0.0142,                        # (float) Metallicity of samples
+        fnameOutput=None,                # (str) File name to save (only relevant if saveOutput is true)
+        saveOutput=False,                # (bool) Whether to save the output to a file (if new samples are drawn)
+        makePlot=False,                  # (bool) Whether to generate a 3D plot of the data
+        singleComponentToUse=None,       # (int) Number of the single component to model (for visualizations). If None, use full model.
+    ):
 
     if not saveOutput:
         fnameOutput=None

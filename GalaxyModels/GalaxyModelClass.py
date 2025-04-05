@@ -1,6 +1,13 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Oct 16 19:41:43 2024
+
+@author: alexey, reinhold
+"""
+
 import os
 import h5py as h5
-import pandas as pd
 import numpy as np
 import scipy.stats as ss
 from utils import MWConsts
@@ -10,44 +17,38 @@ class GalaxyModel():
     def __init__(self, name, Z=0.0142, fnameOutput=None, saveOutput=False, singleComponentToUse=None): 
         self.name = name
         self.Z = Z
-        self.fnameOutput = self.GetFnameOutput(fnameOutput)
-        self.fpathOutput = os.path.abspath("ModelOutput/{}".format(self.fnameOutput))
-
+        self.fnameOutput = os.path.abspath(self.GetFnameOutput(fnameOutput))
         self.saveOutput = saveOutput
-        self.modelParams = self.GetModelParameters()
 
-        self.SetOtherConstants()
+        self.SetModelParameters()
         self.components = self.CreateComponents()
         self.componentWeights = self.CalculateGalacticComponentMassFractions()
         if singleComponentToUse is not None:
             self.componentWeights = np.zeros_like(self.componentWeights) 
             self.componentWeights[singleComponentToUse] = 1
 
-
-    # Function passed to children
-    def GetModelParameters(self):
-        pass
-
-    def SetOtherConstants(self):
+    # Functions passed to children
+    def SetModelParameters(self):
         pass
 
     def CreateComponents(self):
         pass
 
-    def CalculateGalacticComponentMassFractions(self, singleComponentToUse):
+    def CalculateGalacticComponentMassFractions(self):
         pass
 
+    # Functions that apply for all Galaxy models
     def GetFnameOutput(self, fnameOutput):
         if fnameOutput is not None:
             return fnameOutput
         else:
             return "SampledGalacticLocations_{}_{}.h5".format(self.name, self.Z)
 
-    # Functions that apply for all Galaxy models
-    def GetSamples(self, nBinaries):
-        if os.path.isfile(self.fpathOutput):
+    def GetSamples(self, nBinaries=None):
+        # If fnameOutput file exists, read from that, otherwise draw new samples 
+        if os.path.isfile(self.fnameOutput):
             print("Importing data from existing file: {}".format(self.fnameOutput))
-            return h5.File(self.fpathOutput, 'r')['data']
+            return h5.File(self.fnameOutput, 'r')['data']
         else:
             print("Generating new data, saving to: {}".format(self.fnameOutput))
             return self.DrawSamples(nBinaries)
@@ -102,13 +103,13 @@ class GalaxyModel():
         b_gal, l_gal, d_gal = bld_gal
         t_birth = t 
 
-        drawn_samples = np.vstack((b_gal, l_gal, d_gal, t_birth, which_component))
         # Reorder the drawn_samples by distance, closest first
+        drawn_samples = np.vstack((b_gal, l_gal, d_gal, t_birth, which_component))
         drawn_samples = drawn_samples[:,d_gal.argsort()]
 
         if self.saveOutput:
             print(self.fnameOutput)
-            with h5.File(self.fpathOutput, 'w') as f:
+            with h5.File(self.fnameOutput, 'w') as f:
                 f.create_dataset('data', data=drawn_samples)
 
         return drawn_samples
@@ -132,15 +133,11 @@ class GalaxyComponent():
         self.Rotate = RotationFunction 
         self.set_other_constants()
 
-    # Every Galaxy Component should have these, but they should be set uniquely to that Component
-    def set_other_constants(self):
-        # Optional function to set specific internal variables for child classes
-        pass
-
+    # Functions passed to children
     def RhoFunction(self, r, z):
-        # Optional function to set specific internal variables for child classes
         pass
 
+    # Functions that apply for all Galaxy Components
     def ConvertToGalacticFrame(self, r, z):
         theta = 2*np.pi*np.random.uniform(size=r.size)
         x = r*np.cos(theta)

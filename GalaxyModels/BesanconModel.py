@@ -3,11 +3,10 @@
 """
 Created on Wed Oct 16 19:41:43 2024
 
-@author: alexey
+@author: alexey, reinhold
 """
 
 import numpy as np
-import pandas as pd
 from utils import MWConsts
 from GalaxyModelClass import GalaxyModel, GalaxyComponent
 
@@ -21,8 +20,8 @@ from GalaxyModelClass import GalaxyModel, GalaxyComponent
 class BesanconModel(GalaxyModel):
     # Redefine the necessary functions
 
-    def SetOtherConstants(self):
-        # RTW: add units here?
+    def SetModelParameters(self):
+        # TODO: add units
         self.componentNames  =           ['YoungThinDisk',  'ThinDisk2',  'ThinDisk3',  'ThinDisk4',  'ThinDisk5',  'ThinDisk6',  'ThinDisk7',  'ThickDisk',      'Halo',   'Bulge']                                 
         self.ageMins         =  np.array([0,                0.15,         1,            2,            3,            5,            7,            10,               14,       8],               dtype='float64')*1000  
         self.ageMaxs         =  np.array([0.15,             1.,           2.,           3.,           5.,           7.,           10.,          10.,              14.,      10],              dtype='float64')*1000  
@@ -42,6 +41,7 @@ class BesanconModel(GalaxyModel):
                 RotationFunction = self.BulgeRotationFunction
             else:
                 RotationFunction = self.DefaultRotationFunction
+
             # Append the component, including the Rho Function
             components.append(GalaxyComponent(
                 componentName=self.componentNames[iComponent],
@@ -57,7 +57,6 @@ class BesanconModel(GalaxyModel):
 
     def RhoFunctions(self, iComponent):
         # Define RhoFunction(r,z), for each Component in the Besancon model, weights are defined later
-        # RTW TODO: Cite a paper for this, the constants / variable names are a bit hard to interpret otherwise
         # Young thin disc
         if iComponent == 0:
             hPlus = 5
@@ -157,7 +156,6 @@ class BesanconModel(GalaxyModel):
         NormCArray = np.zeros(self.nComponents)
         # Halo mass:
         iHalo = np.where(np.in1d(self.componentNames, ['Halo']))[0][0]
-        # print(iHalo)
         NormCArray[iHalo] = MWConsts['MHalo']/componentIntegrals[iHalo]
         # Bulge mass:
         iBulge = np.where(np.in1d(self.componentNames, ['Bulge']))[0][0]
@@ -179,13 +177,5 @@ class BesanconModel(GalaxyModel):
         # Mass fractions in each component
         componentMassFractions = componentMasses/MWConsts['MGal']
 
-        #self.componentWeights = componentMassFractions
-
-        #NormConstantsDict = {'NormCArray': NormCArray, 'ComponentMasses': ComponentMasses,
-        #                     'ComponentMassFractions': ComponentMassFractions}
-        #NormConstantsDF = pd.DataFrame(NormConstantsDict)
-        #NormConstantsDF.to_csv(self.fnameComponentMassFractions, index=False)
-
         return componentMassFractions
 
-    ####################
