@@ -1,4 +1,61 @@
+import os
 import numpy as np
+
+from population_synthesis.rapid_code_load_T0 import load_T0_data
+from utils import fGW_from_A
+
+# This environment variable must be set by the user to point to the root of the google drive folder
+SIM_DIR = os.environ['UCB_GOOGLE_DRIVE_DIR']
+
+
+def getSimulationProperties(pathToPopSynthData=None, applyInitialLisaBandFilter=False):
+    if not os.path.isfile(pathToPopSynthData):
+        raise Exception("File not found: {}".format(pathToPopSynthData))
+
+    alldirs = pathToPopSynthData.split('/')
+    modelVariation = alldirs[-2]
+    codeName = alldirs[-1][:-8]  # remove the _T0.hdf5 to get the code name
+
+    print("{} {}".format(modelVariation, codeName))
+
+    df, header = load_T0_data(pathToPopSynthData)
+
+    nTotalBinaries = df.shape[0]
+    Z = header['Z'][0]
+    m1 = df.mass1               # Msun
+    m2 = df.mass2               # Msun
+    a = df.semiMajor            # Rsun
+    time = df.time              # Myr 
+    data = np.vstack((m1, m2, a, time))
+
+    mask_DWDs = (df.type1.isin([21, 22, 23])) \
+              & (df.type2.isin([21, 22, 23])) \
+              & (a > 0)  # Event is formation of intact DWD binaries
+
+    DWDs = data[:,mask_DWDs]
+
+
+    if applyInitialLisaBandFilter:
+
+        P_birth = P_from_A(DWDs[0,:], DWDs[1,:], DWDs[2,:]) # yr
+        fGW_birth = fGW_from_A(DWDs[0,:], DWDs[1,:], DWDs[2,:]) # Hz
+
+        T_Hubble = 1.4e4 # Myr
+        a_Hub = calculateSeparationAfterSomeTime(
+            DWDs[0,:], DWDs[1,:], DWDs[2,:], T_Hubble) # R_sun
+        fGW_Hub = fGW_from_A(DWDs[0,:], DWDs[1,:], a_Hub) # Hz
+
+        f_min = 1e-4 # Minimum frequency bin for binary to reach LISA within Hubble time
+        f_max = 1e-1 # Maximum frequency bin for LISA 
+        mask_LISA = (f_GW_birth < f_max) & (f_GW_Hub > f_min) 
+        DWDs = DWDs[:,mask_LISA]
+
+    # apply masks
+    #df.loc[mask].groupby('ID', as_index=False).first()  
+
+    # TODO: remove systems that will never appear as LISA sources
+    return DWDs, Z
+
 
 
 def get_bin_frac_ratio(IC_model, binary_fraction=0.5):
@@ -23,7 +80,7 @@ def get_bin_frac_ratio(IC_model, binary_fraction=0.5):
                              0.2543196815715736, 0.21741447251907284, 0.18304208420964435, 0.15107685764473266,
                              0.12041807829958329, 0.09269327057199453, 0.06744511227698262, 0.04274378038546733,
                              0.02137711323393566, 0.0],
-        'ecc_uniform': [5.889211849314321, 4.361889407239361, 3.4020828542097057, 2.746002579297502,
+        'uniform_ecc': [5.889211849314321, 4.361889407239361, 3.4020828542097057, 2.746002579297502,
                         2.2673692464054183, 1.9141940732871088, 1.6405959517007267, 1.4094329827706373,
                         1.230470758764182, 1.072042568070819, 0.943431196191181, 0.8333833246264916,
                         0.7309333535548196, 0.6475817013002746, 0.574417702589979, 0.5056945660498336,
@@ -86,7 +143,7 @@ def get_mass_norm(IC_model, binary_fraction=0.5):
     '''
 
     mass_binaries = {
-        'ecc_uniform': 2720671.1164002735,
+        'uniform_ecc': 2720671.1164002735,
         'ecc_thermal': 2700943.07050043,
         'porb_log_uniform': 2713046.6197530716,
         'm2_min_05': 2905718.830512573,
@@ -99,3 +156,8 @@ def get_mass_norm(IC_model, binary_fraction=0.5):
     mass_total = mass_binaries[IC_model] * (1 + ratio)
 
     return mass_total
+
+if __name__ == "__main__":
+    pathToPopSynthData = os.path.join(SIM_DIR, "simulated_binary_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_T0.hdf5")
+    df, header = getSimulationProperties(pathToPopSynthData)
+    print(df)

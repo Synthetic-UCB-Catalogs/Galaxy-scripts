@@ -1,2 +1,4 @@
 *.pyc
 csvs/
+*.h5
+**/__pycache__/

@@ -44,17 +44,10 @@ class GalaxyModel():
         else:
             return "SampledGalacticLocations_{}_{}.h5".format(self.name, self.Z)
 
-    def GetSamples(self, nBinaries=None):
-        # If fnameOutput file exists, read from that, otherwise draw new samples 
-        if os.path.isfile(self.fnameOutput):
-            print("Importing data from existing file: {}".format(self.fnameOutput))
-            return h5.File(self.fnameOutput, 'r')['data']
-        else:
-            print("Generating new data, saving to: {}".format(self.fnameOutput))
-            return self.DrawSamples(nBinaries)
-
-
     def DrawSamples(self, nSystems):
+
+        print("Generating new data")
+        nSystems = int(nSystems) # in case of weird input type issues
 
         # the component weight is the mass fraction multiplied by the metallicity weight
         component_weights = self.componentWeights
@@ -108,7 +101,7 @@ class GalaxyModel():
         drawn_samples = drawn_samples[:,d_gal.argsort()]
 
         if self.saveOutput:
-            print(self.fnameOutput)
+            print("Saving to: {}".format(self.fnameOutput))
             with h5.File(self.fnameOutput, 'w') as f:
                 f.create_dataset('data', data=drawn_samples)
 
@@ -131,7 +124,6 @@ class GalaxyComponent():
         self.std_FeH = std_FeH
         self.RhoFunction = RhoFunction
         self.Rotate = RotationFunction 
-        self.set_other_constants()
 
     # Functions passed to children
     def RhoFunction(self, r, z):
