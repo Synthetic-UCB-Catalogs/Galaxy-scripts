@@ -1,14 +1,16 @@
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 from population_synthesis.rapid_code_load_T0 import load_T0_data
-from utils import fGW_from_A
+from utils import fGW_from_A, calculateSeparationAfterSomeTime
+
 
 # This environment variable must be set by the user to point to the root of the google drive folder
 SIM_DIR = os.environ['UCB_GOOGLE_DRIVE_DIR']
 
 
-def getSimulationProperties(pathToPopSynthData=None, applyInitialLisaBandFilter=False):
+def getLisaDwdProperties(pathToPopSynthData=None, applyInitialLisaBandFilter=False):
     if not os.path.isfile(pathToPopSynthData):
         raise Exception("File not found: {}".format(pathToPopSynthData))
 
@@ -37,7 +39,6 @@ def getSimulationProperties(pathToPopSynthData=None, applyInitialLisaBandFilter=
 
     if applyInitialLisaBandFilter:
 
-        P_birth = P_from_A(DWDs[0,:], DWDs[1,:], DWDs[2,:]) # yr
         fGW_birth = fGW_from_A(DWDs[0,:], DWDs[1,:], DWDs[2,:]) # Hz
 
         T_Hubble = 1.4e4 # Myr
@@ -45,15 +46,19 @@ def getSimulationProperties(pathToPopSynthData=None, applyInitialLisaBandFilter=
             DWDs[0,:], DWDs[1,:], DWDs[2,:], T_Hubble) # R_sun
         fGW_Hub = fGW_from_A(DWDs[0,:], DWDs[1,:], a_Hub) # Hz
 
+        # TODO: fix this 
         f_min = 1e-4 # Minimum frequency bin for binary to reach LISA within Hubble time
         f_max = 1e-1 # Maximum frequency bin for LISA 
-        mask_LISA = (f_GW_birth < f_max) & (f_GW_Hub > f_min) 
+        mask_LISA = (fGW_birth < f_max) & (fGW_Hub > f_min) 
+        print(mask_LISA.shape)
+        print(np.sum(mask_LISA))
         DWDs = DWDs[:,mask_LISA]
 
-    # apply masks
-    #df.loc[mask].groupby('ID', as_index=False).first()  
+        #fig, ax = plt.subplots()
+        #ax.plot(fGW_birth, fGW_Hub, 'o')
+        #ax.loglog()
+        #plt.show()
 
-    # TODO: remove systems that will never appear as LISA sources
     return DWDs, Z
 
 
@@ -159,5 +164,5 @@ def get_mass_norm(IC_model, binary_fraction=0.5):
 
 if __name__ == "__main__":
     pathToPopSynthData = os.path.join(SIM_DIR, "simulated_binary_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_T0.hdf5")
-    df, header = getSimulationProperties(pathToPopSynthData)
+    df, header = getLisaDwdProperties(pathToPopSynthData)
     print(df)

@@ -49,6 +49,31 @@ class GalaxyModel():
         print("Generating new data")
         nSystems = int(nSystems) # in case of weird input type issues
 
+        if not self.saveOutput:                     # Just draw the subsamples, if the number is too large, it will crash
+            return self.DrawSubSamples(nSystems, include_component=True)
+        else:                                       # Saving potentially large data, need to chunk it
+            print("Saving to: {}".format(self.fnameOutput))
+
+            # Need to loop over large chunks of samples, since the datafile gets very large otherwise
+            nSystemsPerChunk = int(1e7)
+            nChunks = nSystems // nSystemsPerChunk
+            print(nChunks)
+
+            with h5.File(self.fnameOutput, "w") as f:
+                dset = f.create_dataset('data', dtype='float32', shape=(4, nSystems), chunks=(4, nSystemsPerChunk))
+
+                for iChunk in range(nChunks):
+                    print("iChunk = {}".format(iChunk))
+                    drawn_samples = self.DrawSubSamples(nSystemsPerChunk)
+                    start = nSystemsPerChunk *(iChunk)   
+                    stop  = nSystemsPerChunk *(iChunk+1)
+                    print(start, stop)
+                    dset[:,start:stop] = drawn_samples
+            return
+
+    
+    def DrawSubSamples(self, nSystems, include_component=False):
+
         # the component weight is the mass fraction multiplied by the metallicity weight
         component_weights = self.componentWeights
 
@@ -96,15 +121,10 @@ class GalaxyModel():
         b_gal, l_gal, d_gal = bld_gal
         t_birth = t 
 
-        # Reorder the drawn_samples by distance, closest first
-        drawn_samples = np.vstack((b_gal, l_gal, d_gal, t_birth, which_component))
-        drawn_samples = drawn_samples[:,d_gal.argsort()]
-
-        if self.saveOutput:
-            print("Saving to: {}".format(self.fnameOutput))
-            with h5.File(self.fnameOutput, 'w') as f:
-                f.create_dataset('data', data=drawn_samples)
-
+        if include_component:
+            drawn_samples = np.vstack((b_gal, l_gal, d_gal, t_birth, which_component))
+        else:
+            drawn_samples = np.vstack((b_gal, l_gal, d_gal, t_birth))
         return drawn_samples
 
 

@@ -51,10 +51,10 @@ def P_from_A(m1, m2, a):
 
 def fGW_from_A(m1, m2, a):
     # m1, m2 [Msun], a [Rsun]
-    # fGW in Hz
-    unit_conversion = 3153.23 *360*24*60*60    #np.power((u.AU/u.Rsun),(3/2)).decompose() * yr->s
-    return (2 / unit_conversion) * np.sqrt(m1+m2) *np.power(a,-3/2)
-    
+    # fGW in Hz = 2/Porb
+    unit_conversion = 3153.23 / (365*24*60*60) #np.power((u.AU/u.Rsun),(3/2)).decompose() * yr->s
+    return 2*np.sqrt(m2+m2)*np.power(a, -3/2) *unit_conversion
+
 def inspiral_time(m1, m2, a):
     # m1, m2 [Msun], a [Rsun]
     # return tau [Myr]
@@ -65,3 +65,10 @@ def inspiral_time(m1, m2, a):
 def calculateSeparationAfterSomeTime(m1, m2, a_birth, dt):
     tau_GW = inspiral_time(m1, m2, a_birth)
     return a_birth * np.power(1 - dt/tau_GW, 0.25)
+
+def chirp_mass(m1, m2):
+    return np.power(m1*m2, 3/5)/np.power(m1+m2, 1/5)
+
+if __name__ == "__main__":
+    print()
+
