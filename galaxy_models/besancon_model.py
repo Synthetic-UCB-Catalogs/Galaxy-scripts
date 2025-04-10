@@ -7,8 +7,8 @@ Created on Wed Oct 16 19:41:43 2024
 """
 
 import numpy as np
-from utils import MWConsts
-from galaxy_models.galaxy_model_class import GalaxyModel, GalaxyComponent
+from ..utils import MWConsts
+from .galaxy_model_class import GalaxyModel, GalaxyComponent
 
 
 # For Besancon model, see the full description at https://model.obs-besancon.fr/modele_descrip.php

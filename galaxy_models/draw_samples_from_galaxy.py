@@ -10,7 +10,7 @@ import os
 import numpy as np
 import h5py as h5
 
-from galaxy_models.besancon_model import BesanconModel
+from .besancon_model import BesanconModel
 # TODO: implement other models
 
 # This environment variable must be set by the user to point to the root of the google drive folder

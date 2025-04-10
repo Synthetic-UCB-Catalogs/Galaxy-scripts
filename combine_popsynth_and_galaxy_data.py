@@ -14,9 +14,9 @@ import legwork as lw
 from astropy import units as u
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.environ["PWD"])))
-from utils import MWConsts, fGW_from_A, calculateSeparationAfterSomeTime, inspiral_time, chirp_mass
-from galaxy_models.draw_samples_from_galaxy import createGalaxyModel
-from population_synthesis.get_popsynth_lisa_dwds import getLisaDwdProperties
+from .utils import MWConsts, fGW_from_A, calculateSeparationAfterSomeTime, inspiral_time, chirp_mass
+from .galaxy_models.draw_samples_from_galaxy import createGalaxyModel
+from .population_synthesis.get_popsynth_lisa_dwds import getLisaDwdProperties
 
 # This environment variable must be set by the user to point to the root of the google drive folder
 ROOT_DIR = os.environ['UCB_ROOT_DIR']

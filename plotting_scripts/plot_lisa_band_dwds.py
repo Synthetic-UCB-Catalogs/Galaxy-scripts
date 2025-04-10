@@ -5,8 +5,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.environ["PWD"])))
-from combine_popsynth_and_galaxy_data import matchDwdsToGalacticPositions
-from utils import chirp_mass
+from .combine_popsynth_and_galaxy_data import matchDwdsToGalacticPositions
+from .utils import chirp_mass
 
 SIM_DIR = os.environ['UCB_GOOGLE_DRIVE_DIR']
 # -

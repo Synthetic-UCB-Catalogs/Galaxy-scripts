@@ -73,10 +73,10 @@ def plotSimulatedGalaxySamples(
     #    ax.set_ylim(-30,30)
     plt.show()
     return fig
-    
+
 
 if __name__ == "__main__":
-    plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e6, saveOutput=False) #, singleComponentToUse=8) 
+    plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e7, saveOutput=False) #, singleComponentToUse=8) 
     #plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e8, saveOutput=True) 
     #plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e6, saveOutput=False, fnameOutput="small_test.h5", singleComponentToUse=8) 
     #plotSimulatedGalaxySamples(pathToExistingData="galaxy_models/SampledGalacticLocations_Besancon_0.0142.h5")

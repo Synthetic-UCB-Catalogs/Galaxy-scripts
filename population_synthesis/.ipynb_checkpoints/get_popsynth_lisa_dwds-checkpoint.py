@@ -2,8 +2,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .rapid_code_load_T0 import load_T0_data
-from ..utils import fGW_from_A, calculateSeparationAfterSomeTime
+from population_synthesis.rapid_code_load_T0 import load_T0_data
+from utils import fGW_from_A, calculateSeparationAfterSomeTime
 
 
 # This environment variable must be set by the user to point to the root of the google drive folder

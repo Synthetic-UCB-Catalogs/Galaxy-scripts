@@ -10,7 +10,7 @@ import os
 import h5py as h5
 import numpy as np
 import scipy.stats as ss
-from utils import MWConsts
+from ..utils import MWConsts
 
 
 class GalaxyModel():
