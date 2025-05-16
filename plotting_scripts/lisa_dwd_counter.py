@@ -86,3 +86,45 @@ def dwd_count_icv_average(code_name, rclone_flag=True):
     mean_dwd_count = np.mean(var_count) #average counts over IC variations
     
     return mean_dwd_count
+
+def dwd_count_icv_min_max(code_name, rclone_flag=True):
+    """
+    Calculates the number of LISA DWDs predicted in the Galaxy for a single
+    code, and returns the minimum and maximum values across the different
+    initial condition variations.
+    If rclone_flag is True, filepaths assume you have set up rclone for the
+    project's Google Drive as per Reinhold's tutorial:
+    https://docs.google.com/document/d/1v0dEQWhxzqQoJm877m7fWWhHSTwcOgIvAS87idheNnA
+    If rclone_flag is False, filepaths assume you have the top-level directory
+    in the project's Google Drive as working directory.
+    
+    Parameters
+    ----------
+    code_name: str
+        Name of the code (e.g. "ComBinE", "SEVN").
+    rclone_flag: bool
+        Whether you have set up rclone for the filepaths in the Google Drive or
+        not.
+        
+    Returns
+    -------
+    min_dwd_count: float
+        Minimum number of LISA DWDs predicted in the Galaxy for that code over
+        all initial condition variations.
+    max_dwd_count: float
+        Minimum number of LISA DWDs predicted in the Galaxy for that code over
+        all initial condition variations.
+    """
+    
+    icv_names = ['fiducial', 'm2_min_05', 'porb_log_uniform', 'qmin_01', \
+                 'thermal_ecc', 'uniform_ecc']
+    var_count = np.empty((len(icv_names))) #holds counts from each IC variation
+    
+    for i in range(len(icv_names)):
+        var_count[i] = dwd_count_single_code(code_name, icv_names[i], \
+                                             rclone_flag)
+    
+    min_dwd_count = np.min(var_count)
+    max_dwd_count = np.min(var_count)
+    
+    return min_dwd_count, max_dwd_count
