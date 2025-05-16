@@ -1,10 +1,14 @@
 import pandas as pd
+import os
 
-def dwd_count_single_code(code_name, icv_name):
+def dwd_count_single_code(code_name, icv_name, rclone_flag=True):
     """
     Calculates the number of LISA DWDs predicted in the Galaxy for a single
-    code/variation. Filepaths assume you have the top-level directory in the
-    project's Google Drive as working directory.
+    code/variation. If rclone_flag is True, filepaths assume you have set up
+    rclone for the project's Google Drive as per Reinhold's tutorial:
+    https://docs.google.com/document/d/1v0dEQWhxzqQoJm877m7fWWhHSTwcOgIvAS87idheNnA
+    If rclone_flag is False, filepaths assume you have the top-level directory
+    in the project's Google Drive as working directory.
     
     Parameters
     ----------
@@ -12,10 +16,18 @@ def dwd_count_single_code(code_name, icv_name):
         Name of the code (e.g. "ComBinE", "SEVN").
     icv_name: str
         Name of the initial condition variation (e.g. "fiducial").
+    rclone_flag: bool
+        Whether you have set up rclone for the filepaths in the Google Drive or
+        not.
     """
     
-    initial_string = 'data_products/simulated_galaxy_populations/' + \
-        'monte_carlo_comparisons/initial_condition_variations/'
+    if rclone_flag == True:
+        drive_filepath = 'data_products/simulated_galaxy_populations/' + \
+            'monte_carlo_comparisons/initial_condition_variations/'
+        initial_string = os.environ['UCB_GOOGLE_DRIVE_DIR'] + drive_filepath
+    else:
+        initial_string = 'data_products/simulated_galaxy_populations/' + \
+            'monte_carlo_comparisons/initial_condition_variations/'
     all_dwd_filepath = initial_string + icv_name + '/' + code_name + \
         '_Galaxy_AllDWDs.csv'
     bin_data_filepath = initial_string + icv_name + '/' + code_name + \
