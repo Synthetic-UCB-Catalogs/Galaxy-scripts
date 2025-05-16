@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import os
 
@@ -19,6 +20,11 @@ def dwd_count_single_code(code_name, icv_name, rclone_flag=True):
     rclone_flag: bool
         Whether you have set up rclone for the filepaths in the Google Drive or
         not.
+        
+    Returns
+    -------
+    dwd_count: float
+        Number of LISA DWDs predicted in the Galaxy for that code/variation.
     """
     
     if rclone_flag == True:
@@ -43,3 +49,40 @@ def dwd_count_single_code(code_name, icv_name, rclone_flag=True):
     dwd_count = real_dwd_multiplier * len(lisa_dwd_array) / len(all_dwd_array)
     
     return dwd_count
+
+def dwd_count_icv_average(code_name, rclone_flag=True):
+    """
+    Calculates the number of LISA DWDs predicted in the Galaxy for a single
+    code, averaged over each initial condition variation.
+    If rclone_flag is True, filepaths assume you have set up rclone for the
+    project's Google Drive as per Reinhold's tutorial:
+    https://docs.google.com/document/d/1v0dEQWhxzqQoJm877m7fWWhHSTwcOgIvAS87idheNnA
+    If rclone_flag is False, filepaths assume you have the top-level directory
+    in the project's Google Drive as working directory.
+    
+    Parameters
+    ----------
+    code_name: str
+        Name of the code (e.g. "ComBinE", "SEVN").
+    rclone_flag: bool
+        Whether you have set up rclone for the filepaths in the Google Drive or
+        not.
+        
+    Returns
+    -------
+    mean_dwd_count: float
+        Number of LISA DWDs predicted in the Galaxy for that code, averaged
+        over all initial condition variations.
+    """
+    
+    icv_names = ['fiducial', 'm2_min_05', 'porb_log_uniform', 'qmin_01', \
+                 'thermal_ecc', 'uniform_ecc']
+    var_count = np.empty((len(icv_names))) #holds counts from each IC variation
+    
+    for i in range(len(icv_names)):
+        var_count[i] = dwd_count_single_code(code_name, icv_names[i], \
+                                             rclone_flag)
+    
+    mean_dwd_count = np.mean(var_count) #average counts over IC variations
+    
+    return mean_dwd_count
