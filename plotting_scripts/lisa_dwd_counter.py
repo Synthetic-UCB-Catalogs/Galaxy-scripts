@@ -28,7 +28,7 @@ def dwd_count_single_code(code_name, icv_name, rclone_flag=True):
     """
     
     if rclone_flag == True:
-        drive_filepath = 'data_products/simulated_galaxy_populations/' + \
+        drive_filepath = '/simulated_galaxy_populations/' + \
             'monte_carlo_comparisons/initial_condition_variations/'
         initial_string = os.environ['UCB_GOOGLE_DRIVE_DIR'] + drive_filepath
     else:
