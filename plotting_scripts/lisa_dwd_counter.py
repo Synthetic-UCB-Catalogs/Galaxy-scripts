@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import os
 
 def dwd_count_single_code(code_name, icv_name, rclone_flag=True):
@@ -162,3 +163,76 @@ def all_dwd_single_code(code_name, icv_name, rclone_flag=True):
     total_dwd_count = sum(bin_data_array['SubBinNDWDsReal'])
     
     return total_dwd_count
+
+def lisa_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
+                           rclone_flag=True):
+    """
+    Plots the number of LISA DWDs in the Galaxy for specified codes/variations.
+    
+    Parameters
+    ----------
+    code_list: list of strs
+        List of the names of the codes you want to plot.
+    var_list: list of strs
+        List of the names of the variations you want to plot. Currently
+        supports only initial conditions variations.
+    cmap: str
+        Pyplot colormap to use for the bar plot.
+    rclone_flag: bool
+        Whether you have set up rclone for the filepaths in the Google Drive or
+        not.
+    """
+
+    fig, ax = plt.subplots()
+    width = 0.7/len(var_list) #make bars narrower if plotting more variations
+
+    plot_colormap = plt.get_cmap(cmap)
+    plot_colors = plot_colormap(np.linspace(0,1,len(var_list)))
+
+    for i in range(len(code_list)):
+        for j in range(len(var_list)):
+            try: ax.bar(i+j*width, dwd_count_single_code(code_list[i], \
+                 var_list[j], rclone_flag), width, color=plot_colors[j])
+            except FileNotFoundError: ax.bar(i+j*width, np.nan, width, \
+                 color=plot_colors[j]) #handles missing codes/variations
+    ax.set_xticks(np.linspace((len(var_list)/2 - 0.5)*width, len(code_list) - \
+              1 + (len(var_list)/2 - 0.5)*width, len(code_list)), code_list)
+    #centers ticks for each group of bars
+    ax.legend(var_list)
+    
+def total_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
+                           rclone_flag=True):
+    """
+    Plots the total number of DWDs in the Galaxy (not just the LISA-detectable
+    ones) for specified codes/variations.
+    
+    Parameters
+    ----------
+    code_list: list of strs
+        List of the names of the codes you want to plot.
+    var_list: list of strs
+        List of the names of the variations you want to plot. Currently
+        supports only initial conditions variations.
+    cmap: str
+        Pyplot colormap to use for the bar plot.
+    rclone_flag: bool
+        Whether you have set up rclone for the filepaths in the Google Drive or
+        not.
+    """
+
+    fig, ax = plt.subplots()
+    width = 0.7/len(var_list) #make bars narrower if plotting more variations
+
+    plot_colormap = plt.get_cmap(cmap)
+    plot_colors = plot_colormap(np.linspace(0,1,len(var_list)))
+
+    for i in range(len(code_list)):
+        for j in range(len(var_list)):
+            try: ax.bar(i+j*width, all_dwd_single_code(code_list[i], \
+                 var_list[j], rclone_flag), width, color=plot_colors[j])
+            except FileNotFoundError: ax.bar(i+j*width, np.nan, width, \
+                 color=plot_colors[j]) #handles missing codes/variations
+    ax.set_xticks(np.linspace((len(var_list)/2 - 0.5)*width, len(code_list) - \
+              1 + (len(var_list)/2 - 0.5)*width, len(code_list)), code_list)
+    #centers ticks for each group of bars
+    ax.legend(var_list)
