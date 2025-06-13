@@ -177,7 +177,8 @@ def lisa_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
         List of the names of the variations you want to plot. Currently
         supports only initial conditions variations.
     cmap: str
-        Pyplot colormap to use for the bar plot.
+        Pyplot colormap to use for the bar plot. Defaults to 'rainbow', but we
+        recommend 'gist_rainbow' if you are comparing many (5+) variations.
     rclone_flag: bool
         Whether you have set up rclone for the filepaths in the Google Drive or
         not.
@@ -200,6 +201,8 @@ def lisa_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
     #centers ticks for each group of bars
     ax.legend(var_list)
     
+    return fig, ax
+    
 def total_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
                            rclone_flag=True):
     """
@@ -214,7 +217,8 @@ def total_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
         List of the names of the variations you want to plot. Currently
         supports only initial conditions variations.
     cmap: str
-        Pyplot colormap to use for the bar plot.
+        Pyplot colormap to use for the bar plot. Defaults to 'rainbow', but we
+        recommend 'gist_rainbow' if you are comparing many (5+) variations.
     rclone_flag: bool
         Whether you have set up rclone for the filepaths in the Google Drive or
         not.
@@ -236,3 +240,5 @@ def total_dwd_count_plotter(code_list, var_list, cmap='rainbow', \
               1 + (len(var_list)/2 - 0.5)*width, len(code_list)), code_list)
     #centers ticks for each group of bars
     ax.legend(var_list)
+    
+    return fig, ax
