@@ -1,9 +1,14 @@
-import os
+import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .rapid_code_load_T0 import load_T0_data
-from ..utils import fGW_from_A, calculateSeparationAfterSomeTime
+# +
+# Add local scripts
+sys.path.insert(0, '../..')
+
+from galaxy_scripts.population_synthesis.rapid_code_load_T0 import load_T0_data
+from galaxy_scripts.utils import fGW_from_A, calculateSeparationAfterSomeTime
+# -
 
 
 # This environment variable must be set by the user to point to the root of the google drive folder

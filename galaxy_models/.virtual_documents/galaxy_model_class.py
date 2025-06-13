@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Wed Oct 16 19:41:43 2024
 
 @author: alexey, reinhold
 """
+
 
 import os
 import h5py as h5
@@ -12,6 +11,8 @@ import numpy as np
 import scipy.stats as ss
 import time
 from ..utils import MWConsts
+
+
 
 
 
@@ -135,6 +136,8 @@ class GalaxyModel():
 
 
 
+
+
 class GalaxyComponent():
     def __init__(self,
                  componentName, ageMin, ageMax,
@@ -189,4 +192,3 @@ class GalaxyComponent():
 
     def GetVolumeIntegral(self, nPoints=100):
         return np.sum(self.GetDensityGrid(nPoints=nPoints))
-

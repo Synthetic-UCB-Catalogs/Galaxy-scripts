@@ -13,7 +13,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.environ["PWD"])))
-from combine_popsynth_and_galaxy_data import matchDwdsToGalacticPositions
+#from combine_popsynth_and_galaxy_data import matchDwdsToGalacticPositions
 from utils import chirp_mass
 
 SIM_DIR = os.environ['UCB_GOOGLE_DRIVE_DIR']
@@ -73,11 +73,11 @@ def plotSimulatedGalaxySamples(
     #    ax.set_ylim(-30,30)
     plt.show()
     return fig
-    
+
 
 if __name__ == "__main__":
-    plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e6, saveOutput=False) #, singleComponentToUse=8) 
-    #plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e8, saveOutput=True) 
+    #plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e7, saveOutput=False) #, singleComponentToUse=8) 
+    plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e8, saveOutput=True, fnameOutput="Besancon_1e8.h5",) 
     #plotSimulatedGalaxySamples(galaxyModelName='Besancon', nSamples=1e6, saveOutput=False, fnameOutput="small_test.h5", singleComponentToUse=8) 
     #plotSimulatedGalaxySamples(pathToExistingData="galaxy_models/SampledGalacticLocations_Besancon_0.0142.h5")
 
