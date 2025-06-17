@@ -179,7 +179,9 @@ if __name__=="__main__":
     
     import numpy as np
     from BesanconModelInitParams import BesanconParamsDefined
+    from GalaxyParameters import GalaxyParams
 
+    
     #Model parameters and options 
     ModelParams = { #Main options
                'GalaxyModel': 'Besancon', #Currently can only be Besancon
@@ -224,18 +226,26 @@ if __name__=="__main__":
         # Calculate volume integral for each Galactic component
         IntList = []
         for ii in range(10):
-            Int  = GetVolumeIntegral(ii+1)
+            Int  = GetVolumeIntegral(ii)
             IntList.append(Int)
+
+        #Next population NormCSet for each component 
         
+        #The halo and bulge masses have been independently determined so treat them first
+        #The masses are predefined in GalaxyParams
         #Halo mass:
         IHalo            = np.where(BesanconParamsDefined['BinName'] == 'Halo')[0][0]
-        NormCSet[IHalo]  = GalaxyParams['MHalo']/IntList[IHalo]
+        NormCSet[IHalo]  = GalaxyParams['MHalo'] / IntList[IHalo]
         #Bulge mass:
         IBulge           = np.where(BesanconParamsDefined['BinName'] == 'Bulge')[0][0]
-        NormCSet[IBulge] = (GalaxyParams['MBulge'] + GalaxyParams['MBulge2'])/IntList[IBulge]
+        NormCSet[IBulge] = (GalaxyParams['MBulge'] + GalaxyParams['MBulge2']) / IntList[IBulge]
+
+        #The thin and thick disk masses are determined by the solar density and total Galaxy mass
+        #which are predefined in GalaxyParams
+        
         #Thin/Thick disc masses:
         #First, get the non-weighted local densities
-        RhoTildeSet      = np.array([RhoBesancon(GalaxyParams['RGalSun'], GalaxyParams['ZGalSun'], i + 1) for i in range(8)],dtype=float)        
+        RhoTildeSet      = np.array([RhoBesancon(GalaxyParams['RGalSun'], GalaxyParams['ZGalSun'], ii) for ii in range(8)],dtype=float)        
         #Then, get the weights so that the local densities are reproduced
         NormSetPre       = BesanconParamsDefined['Rho0ParamSetMSunPcM3'][:8]/RhoTildeSet
         #Then renormalise the whole thin/thick disc to match the Galactic stellar mass and finalise the weights
@@ -249,9 +259,7 @@ if __name__=="__main__":
         
         NormConstantsDict = {'NormCSet': NormCSet, 'BinMasses': BinMasses, 'BinMassFractions': BinMassFractions}
         NormConstantsDF   = pd.DataFrame(NormConstantsDict)
-        NormConstantsDF.to_csv('./Data/BesanconGalacticConstants.csv',index=False)
-    else:
-        
+        NormConstantsDF.to_csv('./Data/BesanconGalacticConstants.csv',index=False)        
         
         
     GalFunctionsDict = {'Besancon': RhoBesancon}

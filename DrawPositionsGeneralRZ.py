@@ -84,73 +84,7 @@ ModelParams = { #Main options
 #    elif isinstance(obj, h5py.Group):
 #        print(f"{indent}- Group: {name}")
 
-#Units
-DaysToSec = float(str((u.d/u.s).decompose()))
-YearToSec = float(str((u.yr/u.s).decompose()))
-MyrToSec  = 1.e6*YearToSec
-KmToCM    = float(str((u.km/u.cm).decompose()))
-MSunToG   = ((const.M_sun/u.g).decompose()).value
-RSunToCm  = ((const.R_sun/u.cm).decompose()).value
 
-#Constants
-GNewtCGS  = ((const.G*u.g*((u.s)**2)/(u.cm)**3).decompose()).value
-CLightCGS = ((const.c*(u.s/u.cm)).decompose()).value
-RGravSun  = 2.*GNewtCGS*MSunToG/CLightCGS**2
-RhoConv   = (MSunToG/RSunToCm**3)
-
-#GW constants
-ADotGWPreFacCGS = (256./5)*((CLightCGS)**(-2))*(GNewtCGS*MSunToG/(RSunToCm*CLightCGS))**3
-TauGWPreFacMyr  = (RSunToCm/ADotGWPreFacCGS)/MyrToSec
-
-MRWDMset,MRWDRSet    = np.split(np.loadtxt(CodeDir + '/WDData/MRRel.dat'),2,axis=1)
-MRWDMset             = MRWDMset.flatten()
-MRWDRSet             = MRWDRSet.flatten()
-MRSpl                = UnivariateSpline(MRWDMset, MRWDRSet, k=4, s=0)
-
-#WD radius in RSun
-def RWDPre(MWD):
-    Res = float(MRSpl(MWD))
-    return Res
-RWD = np.vectorize(RWDPre)
-
-#The orbital period in years
-def POrbYrPre(MDonor, MAccretor, BinARSun):
-    Omega = np.sqrt(GNewtCGS*MSunToG*(MDonor + MAccretor)/(BinARSun*RSunToCm)**3)
-    Res   = (2.*np.pi/Omega)/YearToSec
-    return Res
-POrbYr = np.vectorize(POrbYrPre)
-
-#The binary separation in RSun
-def ABinRSunPre(MDonor, MAccretor, POrbYr):
-    Omega = (2.*np.pi/(POrbYr*YearToSec))
-    Res = ((GNewtCGS*MSunToG*(MDonor + MAccretor)/Omega**2)**(1/3))/RSunToCm
-    return Res
-ABinRSun = np.vectorize(ABinRSunPre)
-
-
-#The GW inspiral time in megayears
-def TGWMyrPre(M1MSun, M2MSun, aRSun):
-    Res = TauGWPreFacMyr/((M1MSun + M2MSun)*M1MSun*M2MSun/aRSun**4)
-    return Res
-TGWMyr = np.vectorize(TGWMyrPre)
-
-#The orbital separation after a given GW inspiral time
-def APostGWRSunPre(M1MSun, M2MSun, AInitRSun, TGWInspMyr):
-    TGWFull = TGWMyr(M1MSun, M2MSun, AInitRSun)
-    Res     = AInitRSun*(1 - TGWInspMyr/TGWFull)**0.25
-    return Res
-APostGWRSun = np.vectorize(APostGWRSunPre)
-
-#Roche lobe radius/BinA -- Eggeleton's formula
-def fRL(q):
-    X   = q**(1./3)
-    Res = 0.49*(X**2)/(0.6*(X**2) + np.log(1.+X))
-    return Res
-
-#Roche lobe radius/BinA for the donor
-def fRLDonor(MDonorMSun,MAccretorMSun):
-    q = MDonorMSun/MAccretorMSun
-    return fRL(q)
 
 
 
