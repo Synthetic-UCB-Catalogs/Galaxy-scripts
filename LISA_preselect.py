@@ -51,7 +51,7 @@ def frac_RL(q):
     return f
 
 
-def get_T0_DWDs(ModelParams, T0_dat_path):
+def get_T0_DWDs(ModelParams, T0_dat_path, verbose=False):
     '''Returns the T0 data for the DWDs based on the model parameters.
     
     Parameters
@@ -60,6 +60,8 @@ def get_T0_DWDs(ModelParams, T0_dat_path):
         Dictionary containing model parameters including 'RunSubType'.
     T0_dat_path : str
         Path to the T0 data file.
+    verbose : bool, optional
+        If True, prints additional information during processing. Default is False.
 
     Returns
     -------
@@ -69,8 +71,11 @@ def get_T0_DWDs(ModelParams, T0_dat_path):
     #Load the T0 data
     # Note that the path should be the path to 'data_products'
     # folder in the Google Drive download 
-    T0_data = load_T0_data(T0_dat_path)
+    T0_data, _ = load_T0_data(T0_dat_path)
     
+    if verbose:
+        print(f"Loaded T0 data with {len(T0_data)} entries.")
+
     # Handle the DWD selection based on the Code in ModelParams
     # and apply a semimajor axis cut as specified in ModelParams
     if ModelParams['Code'] == 'ComBinE':
@@ -83,6 +88,9 @@ def get_T0_DWDs(ModelParams, T0_dat_path):
             (T0_data.type1.isin([21,22,23])) & (T0_data.type2.isin([21,22,23])) & 
             (T0_data.semiMajor > 0) & (T0_data.semiMajor < ModelParams['ACutRSunPre'])
             ].groupby('ID', as_index=False).first() 
+        
+    if verbose: 
+        print(f"Found {len(T0_DWD)} DWDs in T0 data with semimajor axis < {ModelParams['ACutRSunPre']} RSun.")
             
     return T0_DWD
 
@@ -182,7 +190,7 @@ def get_GW_timescales(T0_DWD):
     return T0_DWD
 
 
-def calc_filter_properties(T0_DWD, ModelParams):
+def calc_filter_properties(T0_DWD, ModelParams, verbose=False):
     '''Calculates the properties of the DWDs based on the T0 data.
     
     Parameters
@@ -190,7 +198,9 @@ def calc_filter_properties(T0_DWD, ModelParams):
     T0_DWD : DataFrame
         DataFrame containing the T0 data for DWDs.
     ModelParams : dict
-        Dictionary containing model parameters including 'MaxAgeMyr'.
+        Dictionary containing model parameters including 'MaxTDelay'.
+    verbose : bool, optional
+        If True, prints additional information during processing. Default is False.
 
     Returns
     -------
@@ -208,14 +218,33 @@ def calc_filter_properties(T0_DWD, ModelParams):
     T0_DWD = get_GW_timescales(T0_DWD)
 
     # filter based on sources that don't make it to LISA band before max age
-    T0_DWD = T0_DWD.loc[T0_DWD['t_to_LISA'] < ModelParams['MaxAgeMyr']]
+    T0_DWD = T0_DWD.loc[T0_DWD['t_to_LISA'] < ModelParams['MaxTDelay']]
+
+    if verbose:
+        print(f"Filtered DWDs to {len(T0_DWD)} that will evolve to LISA band before {ModelParams['MaxTDelay']} Myr.")
 
     return T0_DWD
 
 
-def get_possible_T0_LISA_sources(ModelParams, T0_dat_path):
-    '''Returns a list of likely LISA sources based on the preselection criteria.
-    The criteria are:'''
+def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
+    '''Returns a list of likely LISA sources drawn from the 
+    T0 data and the maximum Galactic component age 
+    specified in ModelParams.
+    
+    Parameters
+    ----------
+    ModelParams : dict
+        Dictionary containing model parameters including 'RunSubType' and 'MaxTDelay'.
+    T0_dat_path : str
+        Path to the T0 data file.
+    verbose : bool, optional
+        If True, prints additional information during processing. Default is False.
+    
+    Returns
+    -------
+    DataFrame
+        DataFrame containing the T0 data for DWDs that are likely LISA sources.
+    '''
 
     # I think we want to move this outside
     # Based on the model parameters, determine the mass that was initialized for the T0 data
@@ -226,11 +255,15 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path):
     # Get the T0 data for DWDs
     # Note that the path should be the path to 
     # 'data_products' directory in the Google Drive from rclone
-    T0_DWD = get_T0_DWDs(ModelParams, T0_dat_path)
+    T0_DWD = get_T0_DWDs(ModelParams, T0_dat_path, verbose=verbose)
+    if T0_DWD.empty:
+        raise ValueError("No DWDs found in the T0 data. Check the input parameters or data file.")
 
     # Calculate orbital properties and GW evolution timescales based on the T0 WDs
     # This will also filter out DWDs that will not evolve to the LISA band before 
-    # the maximum age specified in ModelParams['MaxAgeMyr']
-    T0_DWD = calc_filter_properties(T0_DWD, ModelParams)
+    # the maximum age specified in ModelParams['MaxTDelay']
+    T0_DWD_LISA = calc_filter_properties(T0_DWD, ModelParams, verbose=verbose)
+    if T0_DWD_LISA.empty:
+        raise ValueError("No DWDs found that will evolve to the LISA band before the maximum age. Check the input parameters or data file.")
 
-    return T0_DWD
+    return T0_DWD_LISA
