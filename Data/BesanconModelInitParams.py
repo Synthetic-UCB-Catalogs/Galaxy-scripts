@@ -28,7 +28,6 @@ BesanconParamsDefined = {
     'ZNPoints': np.array([800,800,800,800,800,800,800,800,800,400],dtype='int64'),
     'FeHMean': np.array([0.01,0.03,0.03,0.01,-0.07,-0.14,-0.37,-0.78,-1.78,0.00],dtype='float64'),
     'FeHStD': np.array([0.12,0.12,0.10,0.11,0.18,0.17,0.20,0.30,0.50,0.40],dtype='float64'),
-    #'Rho0ParamSetMSunPcM3': np.array([4.0e-3,7.9e-3,6.2e-3,4.0e-3,5.8e-3,4.9e-3,6.6e-3,1.34e-3,9.32e-6],dtype='float64'), Robin2003
     'Rho0ParamSetMSunPcM3': np.array([1.888e-3,5.04e-3,4.11e-3,2.84e-3,4.88e-3,5.02e-3,9.32e-3,2.91e-3,9.2e-6],dtype='float64'), #Czekaj2014
     'SigmaWKmS': np.array([6,8,10,13.2,15.8,17.4,17.5],dtype='float64'),
     'EpsSetThin': np.array([0.0140, 0.0268, 0.0375, 0.0551, 0.0696, 0.0785, 0.0791],dtype='float64'),

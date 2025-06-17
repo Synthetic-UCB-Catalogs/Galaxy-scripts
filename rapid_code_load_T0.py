@@ -4,8 +4,8 @@ import numpy as np
 import h5py as h5
 
 #######################################################################
-### Functions to load T0.hdf5 data
-#######################################################################
+# ## Functions to load T0.hdf5 data
+# ######################################################################
 
 def load_T0_data(ifilepath, code=None, **kwargs):
     """Read in standardized output Common Core data and select at DWD formation
@@ -18,7 +18,7 @@ def load_T0_data(ifilepath, code=None, **kwargs):
         ifilepath to T0 datafile 
 
     code : 
-        name of code (only required for non-standard codes, ComBinE and SEVN)
+        name of code (only required for non-rapid codes, ComBinE and SEVN)
 
     **kwargs
         metallicty : `float`
@@ -103,16 +103,70 @@ def load_IC(ifilepath):
         all ICs at Zero Age Main Sequence
     """
     try:
-        ICs = pd.read_csv(filename, skiprows=1, names=["mass1", "mass2", "period"])
+        ICs = pd.read_csv(ifilepath, skiprows=1, names=["mass1", "mass2", "period"])
     except:
-        ICs = pd.read_csv(filename, skiprows=1, names=["mass1", "mass2", "eccentricity"])
+        ICs = pd.read_csv(ifilepath, skiprows=1, names=["mass1", "mass2", "eccentricity"])
 
     return ICs
 
 
 #######################################################################
-### Functions to convert from original code outputs into T0.hdf5 format
-#######################################################################
+# ## Functions to convert from original code outputs into T0.hdf5 format
+# ######################################################################
+
+def convert_ComBinE_csv_to_h5(ifilepath, outputpath=None, hdf5_filename="ComBinE_T0.hdf5"):
+    """Read in ComBinE data and convert to L0
+    
+    Parameters
+    ----------
+    ifilepath : `str`
+        name of file including path
+
+    Returns
+    -------
+    dat : `pandas.DataFrame`
+        all data in L0 format
+        
+    header : `pandas.DataFrame`
+        header for dat
+    """
+
+    col_standard = ["ID","UID","SID","time","event",
+                    "semiMajor","eccentricity","type1",
+                    "mass1","radius1","Teff1","massHeCore1",
+                    "type2","mass2","radius2","Teff2","massHeCore2",
+                    "envBindEn","massCOCore1","massCOCore2",
+                    "radiusRL1","radiusRL2","period",
+                    "luminosity1","luminosity2"]
+    # load the data
+    dat = pd.read_csv(ifilepath, skiprows=6, names=col_standard)
+    lines_number = 6
+    with open(ifilepath) as input_file:
+        head = [next(input_file) for _ in range(lines_number)]
+        T0_info = head[4].replace(" ", "").split(",")
+    
+        header = {"cofVer" : float(T0_info[0]), 
+                  "cofLevel": T0_info[1],
+                  "cofExtension": "None", 
+                  "bpsName": T0_info[3],
+                  "bpsVer": T0_info[4], 
+                  "contact": T0_info[5], 
+                  "NSYS": int(T0_info[6]), 
+                  "NLINES": int(T0_info[7]),
+                  "Z": float(T0_info[8].replace("\n",""))}
+    #header = pd.DataFrame.from_dict([header_info])
+
+    # Save in hdf5 format
+    if outputpath is None:
+        outputpath = os.path.split(ifilepath)[0]
+    ofilepath = os.path.join(outputpath, hdf5_filename)
+    dat.to_hdf(ofilepath, key='data', mode='w')
+    with pd.HDFStore(ofilepath) as hdf_store:
+        hdf_store.put('data', dat, format='table') 
+        hdf_store.get_storer('data').attrs.metadata = header
+    
+    return dat, header
+
 
 def convert_COSMIC_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filename="COSMIC_T0.hdf5"):
     """Read in COSMIC data and convert to L0
@@ -128,7 +182,7 @@ def convert_COSMIC_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_file
     Returns
     -------
     dat : `pandas.DataFrame`
-        all data in T0 format
+        all data in L0 format
         
     header : `pandas.DataFrame`
         header for dat
@@ -172,23 +226,40 @@ def convert_COSMIC_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_file
 
     # convert evol_type to event
     dat["event"] = np.zeros(len(dat))
-    dat.loc[dat.evol_type == 1, "event"] = -1
+    dat.loc[dat.evol_type == 1, "event"] = 13
     dat.loc[(dat.evol_type == 2) & (dat.kstar_1.shift() < dat.kstar_1), "event"] = 11
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_1.shift() > dat.kstar_1), "event"] = 11
     dat.loc[(dat.evol_type == 2) & (dat.kstar_2.shift() < dat.kstar_2), "event"] = 12
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_2.shift() > dat.kstar_2), "event"] = 12
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_2 < 10), "event"] = 12
     dat.loc[(dat.evol_type == 3) & (dat.RRLO_1 > 1) & (dat.RRLO_2 < 1), "event"] = 31
     dat.loc[(dat.evol_type == 3) & (dat.RRLO_1 < 1) & (dat.RRLO_2 > 1), "event"] = 32
     dat.loc[(dat.evol_type == 3) & (dat.RRLO_1 > 1) & (dat.RRLO_2 > 1), "event"] = 33
-    dat.loc[(dat.evol_type == 4) & (dat.kstar_1.isin([7,9])) & (dat.kstar_2 != 7) & (dat.kstar_2 != 9), "event"] = 41
-    dat.loc[(dat.evol_type == 4) & (dat.kstar_2.isin([7,9])) & (dat.kstar_1 != 7) & (dat.kstar_1 != 9), "event"] = 42
-    dat.loc[(dat.evol_type == 4) & (dat.kstar_1.isin([7,9])) & (dat.kstar_2.isin([7,9])), "event"] = 43
-    dat.loc[(dat.evol_type == 5), "event"] == 52
-    dat.loc[(dat.evol_type == 6) & ((dat.RRLO_1 > 1) | (dat.RRLO_2 > 1)), "event"] == 52
-    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 > 1) & (dat.RRLO_2 < 1), "event"] == 511
-    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 < 1) & (dat.RRLO_2 > 1), "event"] == 512
-    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 > 1) & (dat.RRLO_2 > 1), "event"] == 513
-    dat.loc[(dat.evol_type == 8) & (dat.kstar_1.isin([7,9])) & (dat.kstar_2 != 7) & (dat.kstar_2 != 9), "event"] = 41
-    dat.loc[(dat.evol_type == 8) & (dat.kstar_2.isin([7,9])) & (dat.kstar_1 != 7) & (dat.kstar_1 != 9), "event"] = 42
-    dat.loc[(dat.evol_type == 8) & (dat.kstar_1.isin([7,9])) & (dat.kstar_2.isin([7,9])), "event"] = 43
+   
+    dat.loc[(dat.evol_type == 4) & (dat.RRLO_1.shift() > 1) & (dat.period > 0), "event"] = 41
+    dat.loc[(dat.evol_type == 4) & (dat.evol_type.shift(2) == 3) & (dat.RRLO_1.shift(2) > 1) & (dat.period > 0), "event"] = 41
+    dat.loc[(dat.evol_type == 4) & (dat.RRLO_1.shift(2) >= 1) & (dat.time.shift() == dat.time) & (dat.period > 0), "event"] = 41
+    dat.loc[(dat.evol_type == 4) & (dat.RRLO_2.shift() > 1) & (dat.period > 0), "event"] = 42   
+    dat.loc[(dat.evol_type == 4) & (dat.RRLO_2.shift() > 1) & (dat.period > 0), "event"] = 42   
+    dat.loc[(dat.evol_type == 4) & (dat.evol_type.shift(2) == 3) & (dat.RRLO_2.shift(2) > 1) & (dat.period > 0), "event"] = 42
+    dat.loc[(dat.evol_type == 4) & (dat.RRLO_2.shift(2) >= 1) & (dat.time.shift() == dat.time) & (dat.period > 0), "event"] = 42
+    dat.loc[(dat.evol_type == 4) & (dat.RRLO_2.shift() > 1) & (dat.period > 0), "event"] = 42   
+    dat.loc[(dat.evol_type == 4) & (dat.kstar_1 >= 7) & (dat.kstar_2 >= 7) & (dat.RRLO_1 >= 0.99) & (dat.RRLO_2 >= 0.99), "event"] = 43
+    dat.loc[(dat.evol_type == 4) & (dat.period == 0), "event"] = 52
+    dat.loc[(dat.evol_type == 5), "event"] = 53
+    dat.loc[(dat.evol_type == 6) & ((dat.RRLO_1 > 1) | (dat.RRLO_2 > 1)), "event"] = 52
+    dat.loc[(dat.evol_type == 6) & (dat.RRLO_2 == -1), "event"] = 52
+    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 > 1) & (dat.RRLO_2 < 1), "event"] = 511
+    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 < 1) & (dat.RRLO_2 > 1), "event"] = 512
+    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 > 1) & (dat.RRLO_2 > 1), "event"] = 513
+    dat.loc[(dat.evol_type == 7) & (dat.RRLO_1 < 1) & (dat.RRLO_2 > 1) & (dat.kstar_1.shift(-1) >= 7) & (dat.kstar_2.shift(-1) >= 7), "event"] = 513    
+    dat.loc[(dat.evol_type == 8) & (dat.RRLO_1 > 1) & (dat.period > 0), "event"] = 41
+    dat.loc[(dat.evol_type == 8) & (dat.RRLO_2 > 1) & (dat.period > 0), "event"] = 42
+    dat.loc[(dat.evol_type == 8) & (dat.kstar_1 >= 7) & (dat.kstar_2 >= 7) & (dat.RRLO_1 >= 0.99) & (dat.RRLO_2 >= 0.99), "event"] = 43
+    dat.loc[(dat.evol_type == 8) & (dat.period == 0), "event"] = 52
+    dat.loc[(dat.evol_type == 8) & (dat.period == -1), "event"] = 52
+    dat.loc[(dat.evol_type == 9) & (dat.kstar_1 == 15), "event"] = 211
+    dat.loc[(dat.evol_type == 9) & (dat.kstar_2 == 15), "event"] = 221
     dat.loc[(dat.evol_type == 15) & (dat.UID.isin(bn_1_cc)), "event"] = 212
     dat.loc[(dat.evol_type == 16) & (dat.UID.isin(bn_2_cc)), "event"] = 222
     dat.loc[(dat.evol_type == 15) & (dat.UID.isin(bn_1_ecsn)), "event"] = 213
@@ -199,11 +270,29 @@ def convert_COSMIC_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_file
     dat.loc[(dat.evol_type == 16) & (dat.UID.isin(bn_2_ppisn)), "event"] = 225
     dat.loc[(dat.evol_type == 15) & (dat.UID.isin(bn_1_DC_fryer)), "event"] = 216
     dat.loc[(dat.evol_type == 16) & (dat.UID.isin(bn_2_DC_fryer)), "event"] = 226
+    dat.loc[(dat.evol_type == 15) & (dat.kstar_1 == 12), "event"] = 213
+    dat.loc[(dat.evol_type == 16) & (dat.kstar_2 == 12), "event"] = 223
     dat.loc[(dat.evol_type == 10) & (dat.semiMajor < 0), "event"] = 83
     dat.loc[(dat.evol_type == 10) & (dat.semiMajor > 0), "event"] = 81
     dat.loc[(dat.evol_type == 10) & (dat.semiMajor == 0) & (dat.UID.isin(bn_merger)), "event"] = 84
     dat.loc[(dat.evol_type == 10) & (dat.semiMajor == 0) & (dat.kstar_1.isin([13,14])) & (dat.kstar_2 == 15) & (dat.UID.isin(bn_merger)), "event"] = 82
+    dat.loc[(dat.evol_type == 100), "event"] = 88
 
+    dat.loc[(dat.RRLO_2 == -2.0), "event"] = 83
+    # drop the extra line for successful common envelope ejections that happens in COSMIC
+    dat = dat.loc[~((dat.event == 41) & (dat.event.shift() == 41))]
+    dat = dat.loc[~((dat.event == 42) & (dat.event.shift() == 42))]
+    dat = dat.loc[~((dat.event == 43) & (dat.event.shift() == 43))]
+
+    # drop spurious lines where COSMIC logs a type change when there isn't one
+    #dat = dat.loc[~((dat.evol_type == 2) & (dat.kstar_1 == dat.kstar_1.shift()))]
+    #dat = dat.loc[~((dat.evol_type == 2) & (dat.kstar_2 == dat.kstar_2.shift()))]
+
+    # drop spurious lines where COSMIC doesn't log the disruption
+    dat = dat.loc[~((dat.evol_type == 8) & (dat.semiMajor < 0) & (dat.RRLO_2 >= 1))]
+    dat = dat.loc[~((dat.evol_type == 8) & (dat.semiMajor < 0) & (dat.RRLO_1 >= 1))]
+    dat = dat.loc[~((dat.evol_type == 8) & (dat.semiMajor < -1))]
+    
     # convert kstar types to system states
     dat["type1"] = np.zeros(len(dat))
     dat["type2"] = np.zeros(len(dat))
@@ -317,9 +406,10 @@ def convert_SeBa_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filena
                "stellar_indentity2", "star_type2", "mass2", "radius2", "Teff2", "massHeCore2"])
 
     # compute the Roche radii at all times
-    dat["RRLO_1"] = Eggleton_Roche_lobe(dat["mass1"]/dat["mass2"], dat["semiMajor"])
-    dat["RRLO_2"] = Eggleton_Roche_lobe(dat["mass2"]/dat["mass1"], dat["semiMajor"])
+    dat["RRLO_1"] = dat["radius1"] / Eggleton_Roche_lobe(dat["mass1"]/dat["mass2"], dat["semiMajor"])
+    dat["RRLO_2"] = dat["radius2"] / Eggleton_Roche_lobe(dat["mass2"]/dat["mass1"], dat["semiMajor"])
 
+    dat.loc[dat.mass2 == 0.0, 'RRLO_1'] = 0.0
     # convert UID to ID
     ID = np.arange(0, len(dat.UID.unique()), 1)
     UID_counts = dat.UID.value_counts().sort_index()
@@ -366,36 +456,71 @@ def convert_SeBa_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filena
     # convert mass transfer events to L0 events
 
     #### Should only use SID for these collections
-    dat.loc[dat.time == 0.0, "event"] = -1
+    dat.loc[dat.time == 0.0, "event"] = 13
     dat.loc[(dat.star_type1.shift() < dat.star_type1), "event"] = 11
     dat.loc[(dat.star_type2.shift() < dat.star_type2), "event"] = 12
-    dat.loc[(dat.SID == 3) & (dat.RRLO_1 > 1), "event"] = 31
-    dat.loc[(dat.SID == 3) & (dat.RRLO_2 > 1), "event"] = 32
+    dat.loc[(dat.SID == 3) & (dat.RRLO_1 > dat.RRLO_2), "event"] = 31
+    dat.loc[(dat.SID == 3) & (dat.RRLO_2 > dat.RRLO_1), "event"] = 32
 
     dat.loc[(dat.event.shift() == 31) & (dat.SID == 2), "event"] = 41
     dat.loc[(dat.event.shift() == 32) & (dat.SID == 2), "event"] = 42
 
-    dat.loc[(dat.SID.isin([5,9])) & (dat.RRLO_1 > 1), "event"] = 511
-    dat.loc[(dat.SID.isin([5,9])) & (dat.RRLO_2 > 1), "event"] = 512
+    dat.loc[(dat.SID.isin([5,9])) & (dat.RRLO_1 > dat.RRLO_2), "event"] = 511
+    dat.loc[(dat.SID.isin([5,9])) & (dat.RRLO_2 > dat.RRLO_1), "event"] = 512
     dat.loc[(dat.SID == 6), "event"] = 513
 
     # 4 is contact
     dat.loc[(dat.SID == 4), "event"] = 53
-
+    
     # 7 is a merger
     dat.loc[(dat.SID == 7), "event"] = 52
 
+    # after the first merger, begin logging star changes instead
+    dat.loc[((dat.event == 52) & (dat.event.shift() == 52) & (dat.type1 > dat.type1.shift())), "event"] = 11
+    dat.loc[((dat.event == 52) & (dat.event.shift() == 52) & (dat.type2 > dat.type2.shift())), "event"] = 12
+
+    dat.loc[((dat.event == 52) & (dat.event.shift() == 11) & (dat.type1.isin([21.0, 22.0, 23.0]))), "event"] = 11
+    dat.loc[((dat.event == 52) & (dat.event.shift() == 12) & (dat.type2.isin([21.0, 22.0, 23.0]))), "event"] = 12
+    dat = dat.loc[~((dat.event == 52) & (dat.semiMajor > 0))]
+
+    # select all CEs and add proper RLO to them
+    ce1 = dat["event"] == 511
+    ce1_dup = dat[ce1]
+    ce1_dup.loc[ce1_dup.event == 511, "event"] = 31
+    dat = pd.concat([ce1_dup, dat])
+    dat = dat.sort_index(kind="mergesort")
+    dat = dat.reset_index(drop=True)
+
+    ce2 = dat["event"] == 512
+    ce2_dup = dat[ce2]
+    ce2_dup.loc[ce2_dup.event == 512, "event"] = 32
+    dat = pd.concat([ce2_dup, dat])
+    dat = dat.sort_index(kind="mergesort")
+    dat = dat.reset_index(drop=True)
+
+    # clean up the ones that are duplicate 31 or 32's
+    dat = dat.loc[~((dat.event == 31) & (dat.event.shift(1) == 31))]
+    dat = dat.loc[~((dat.event == 32) & (dat.event.shift(1) == 32))]
+    
+    # log WD RLO
+    dat.loc[(dat.mass_transfer_type == 4) & (dat.RRLO_1 > 1) & (dat.type1.isin([21, 22, 23]) & (dat.type2.isin([21,22,23]))), "event"] = 31
+    dat.loc[(dat.mass_transfer_type == 4) & (dat.RRLO_2 > 1) & (dat.type1.isin([21, 22, 23]) & (dat.type2.isin([21,22,23]))), "event"] = 31
+    dat.loc[(dat.mass_transfer_type == 7) & (dat.type1.isin([21, 22, 23]) & (dat.type2.isin([21,22,23]))), "event"] = 53
+    dat.loc[(dat.SID == 7) & (dat.type1.isin([21, 22, 23]) & (dat.type2.isin([21,22,23]))) & (dat.semiMajor == 0), "event"] = 52
+    
     dat.loc[(dat.time == max(dat.time)), "event"] = 81
     dat.loc[(dat.time == max(dat.time)) & (dat.star_type1 > 11) & (dat.star_type2 > 11), "event"] = 82
     dat.loc[(dat.time == max(dat.time)) & (dat.semiMajor == 0.0), "event"] = 84
 
+    # drop extra RLO lines
+    dat = dat.loc[~((dat.event == 31) & (dat.event.shift() == 31) & (dat.type1 == dat.type1.shift()))]
 
     dat = dat[["ID","UID","SID","time","event",
                "semiMajor","eccentricity","type1",
                "mass1","radius1","Teff1","massHeCore1",
-               "type2","mass2","radius2","Teff2","massHeCore2"]]
+               "type2","mass2","radius2","Teff2","massHeCore2","RRLO_1","RRLO_2"]]
 
-    header_info = {"cofVer" : 1.0,
+    header = {"cofVer" : 1.0,
                    "cofLevel": "L0",
                    "cofExtension": "None",
                    "bpsName": "SeBa",
@@ -405,7 +530,6 @@ def convert_SeBa_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filena
                    "NLINES": len(dat),
                    "Z": metallicity}
 
-    header = pd.DataFrame.from_dict([header_info])
 
     # Save in hdf5 format
     if outputpath is None:
@@ -435,22 +559,42 @@ def convert_BSE_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filenam
         header for dat
     """
     # load data
-    try:
-        cols = ["UID", "time", "kstar_1", "kstar_2", "mass1", "mass2", "period"]
-        dat = pd.read_csv(ifilepath, sep='\s+',
-            names=cols
-        )
-    except Error: 
-        cols = ["UID", "time", "kstar_1", "kstar_2", "mass1", "mass2", "period", "eccentricity"]
-        dat = pd.read_csv(ifilepath, sep='\s+',
-            names=cols
+    df_header = pd.read_csv(ifilepath, nrows=0)
+    available_columns = df_header.columns.str.strip().str.lstrip("#")
+    print(len(available_columns), available_columns)
+    if any(col.lower() == "ecc" for col in available_columns):
+        cols = ["UID", "time", "kstar_1", "kstar_2", "mass1", "mass2", "period", "eccentricity", "evol_type"]
+        dtype_mapping = {
+                            "UID": int,
+                            "time": float,
+                            "kstar_1": int,
+                            "kstar_2": int,
+                            "mass1": float,
+                            "mass2": float,
+                            "period": float,
+                            "eccentricity": float,
+                            "evol_type": int
+        }
+    else:
+        cols = ["UID", "time", "kstar_1", "kstar_2", "mass1", "mass2", "period", "evol_type"]
+        dtype_mapping = {
+                            "UID": int,
+                            "time": float,
+                            "kstar_1": int,
+                            "kstar_2": int,
+                            "mass1": float,
+                            "mass2": float,
+                            "period": float,
+                            "evol_type": int
+        }
+        
+    dat = pd.read_csv(ifilepath, sep='\s+',
+        names=cols, skiprows=1, dtype=dtype_mapping
         )
 
-    if type(dat.iloc[0].UID) == str:
-        dat = pd.read_csv(ifilepath, sep='\s+',
-        names=cols, header=1
-        )
-        
+    # drop any Sybmiotic/BSS states
+    dat = dat.loc[~dat.evol_type.isin([12,13,14])]
+    
     dat["semiMajor"] = ((dat.period/365.25)**2 * (dat.mass1 + dat.mass2))**(1/3) * 214.94
     if "eccentricity" not in dat.columns:
         dat["eccentricity"] = np.zeros(len(dat))
@@ -495,18 +639,63 @@ def convert_BSE_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filenam
     ID = np.arange(0, len(dat.UID.unique()), 1)
     UID_counts = dat.UID.value_counts().sort_index()
     dat["ID"] = np.repeat(ID, UID_counts)
-    dat["SID"] = ""
-    dat["radius1"] = ""
-    dat["radius2"] = ""
-    dat["Teff1"] = ""
-    dat["Teff2"] = ""
-    dat["massHeCore1"] = ""
-    dat["massHeCore2"] = ""
-    dat["event"] = ""
     
+    # state ID is not applied in BSE; I think only in SeBa
+    #dat["SID"] = ""
     
+    # the radius/teff/core masses are not included
+    dat["radius1"] = np.zeros(len(dat))*np.nan
+    dat["radius2"] = np.zeros(len(dat))*np.nan
+    dat["Teff1"] = np.zeros(len(dat))*np.nan
+    dat["Teff2"] = np.zeros(len(dat))*np.nan
+    dat["massHeCore1"] = np.zeros(len(dat))*np.nan
+    dat["massHeCore2"] = np.zeros(len(dat))*np.nan
     
-    dat = dat[["ID","UID","SID","time","event",
+    # set up the events
+    
+    # first cut out the symbiotic and blue stragglers
+    # for this project
+    dat["event"] = np.zeros(len(dat))
+    disruption_IDs = dat.loc[dat.evol_type == 11].ID
+    dat = dat.loc[~dat.evol_type.isin([11,12,13,14])]
+
+    dat.loc[(dat.evol_type == 1), "event"] = 13
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_1.shift() < dat.kstar_1), "event"] = 11
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_1.shift() > dat.kstar_1), "event"] = 11
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_2.shift() < dat.kstar_2), "event"] = 12
+    dat.loc[(dat.evol_type == 2) & (dat.kstar_2.shift() > dat.kstar_2), "event"] = 12
+    dat.loc[(dat.evol_type == 3), "event"] = 3
+    dat.loc[(dat.evol_type == 3) & (dat.kstar_1 > dat.kstar_2) & (dat.kstar_1 < 7), "event"] = 31
+    dat.loc[(dat.evol_type == 3) & (dat.kstar_1 == 1) & (dat.kstar_2 == 1) & (dat.mass1 > dat.mass2), "event"] = 31
+
+    dat.loc[(dat.evol_type == 3) & (dat.kstar_1 < dat.kstar_2) & (dat.kstar_1 >= 7), "event"] = 32
+
+    dat.loc[(dat.evol_type == 4), "event"] = 4
+    #maybe select 41 vs 42 based on kstar type?
+    
+    dat.loc[(dat.evol_type == 5), "event"] = 53
+    dat.loc[(dat.evol_type == 6), "event"] = 52
+
+
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_1 > dat.kstar_2), "event"] = 511
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_2.shift() < dat.kstar_1.shift()) & (dat.kstar_1.shift() >= 7), "event"] = 512
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_2.isin([10,11,12])) & (dat.kstar_1.isin([10,11,12])), "event"] = 512
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_2.isin([10,11,12])) & (dat.kstar_1.isin([7,8,9])), "event"] = 513
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_2 == 15) & (dat.kstar_1 <= 9), "event"] = 52
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_2 == 15) & (dat.kstar_1 == 15), "event"] = 52
+    dat.loc[(dat.evol_type == 7) & (dat.kstar_1.isin([7,8,9])) & (dat.kstar_2.isin([7,8,9])), "event"] = 43
+
+    dat.loc[(dat.evol_type == 8), "event"] = 4
+    dat.loc[(dat.evol_type == 9) & (dat.kstar_1 == 15), "event"] = 211
+    dat.loc[(dat.evol_type == 9) & (dat.kstar_2 == 15), "event"] = 221
+
+    dat.loc[(dat.evol_type == 11), "event"]
+    dat.loc[(dat.evol_type == 10) & (dat.ID.isin(disruption_IDs)), "event"] = 83
+    dat.loc[(dat.evol_type == 10) & ~(dat.ID.isin(disruption_IDs)) & (dat.period > 0), "event"] = 81
+    dat.loc[(dat.evol_type == 10) & ~(dat.ID.isin(disruption_IDs)) & (dat.period == 0), "event"] = 84    
+
+    dat = dat.fillna(np.nan)
+    dat = dat[["ID","UID","time","event",
                "semiMajor","eccentricity","type1",
                "mass1","radius1","Teff1","massHeCore1",
                "type2","mass2","radius2","Teff2","massHeCore2"]]
@@ -521,7 +710,7 @@ def convert_BSE_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filenam
                    "NLINES": len(dat),
                    "Z": metallicity}
     
-    header = pd.DataFrame.from_dict([header_info])
+    #header = pd.DataFrame.from_dict([header_info])
 
     # Save in hdf5 format
     if outputpath is None:
@@ -530,7 +719,7 @@ def convert_BSE_data_to_T0(ifilepath, metallicity, outputpath=None, hdf5_filenam
     dat.to_hdf(ofilepath, key='data', mode='w')
     with pd.HDFStore(ofilepath) as hdf_store:
         hdf_store.put('data', dat, format='table') 
-        hdf_store.get_storer('data').attrs.metadata = header
+        hdf_store.get_storer('data').attrs.metadata = header_info
     return dat # typically not needed, but possibly good for testing
 
 
