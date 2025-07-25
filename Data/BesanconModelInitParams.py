@@ -35,7 +35,7 @@ BesanconParamsDefined = {
     'dFedR': np.array([-0.07,-0.07,-0.07,-0.07,-0.07,-0.07,-0.07,0,0,0],dtype='float64'),
     'CSVNames':np.array(['GalTestThin1.csv','GalTestThin2.csv','GalTestThin3.csv','GalTestThin4.csv','GalTestThin5.csv','GalTestThin6.csv','GalTestThin7.csv','GalTestThick.csv','GalTestHalo.csv','GalTestBulge.csv'])
      }
-
+# Is this bar angle from a different paper? Robin+2012?
 Alpha  = 78.9*(np.pi/180)
 Beta   = 3.6*(np.pi/180)
 Gamma  = 91.3*(np.pi/180)

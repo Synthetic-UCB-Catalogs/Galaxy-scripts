@@ -23,7 +23,7 @@ CodeDir       = os.path.dirname(os.path.abspath(__file__))
 sys.path[1:1] = [os.path.join(CodeDir, 'PyModules'), os.path.join(CodeDir, 'Data'), os.path.join(CodeDir, 'Simulations')]
 from BesanconModelInitParams import BesanconParamsDefined, Alpha, Beta, Gamma
 from GalaxyParameters import GalaxyParams
-from get_mass_norm import get_mass_norm
+from utils import get_mass_norm
 from rapid_code_load_T0 import load_T0_data
 
 #Units are MSun, kpc, Gyr

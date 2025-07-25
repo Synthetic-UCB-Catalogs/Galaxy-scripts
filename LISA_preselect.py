@@ -2,6 +2,7 @@ import astropy.units as u
 import numpy as np
 import legwork as lw
 from rapid_code_load_T0 import load_T0_data
+from utils import get_mass_norm
 
 
 def get_R_WD(M_WD):
@@ -70,7 +71,9 @@ def get_T0_DWDs(ModelParams, T0_dat_path, verbose=False):
     '''
     #Load the T0 data
     # Note that the path should be the path to 'data_products'
-    # folder in the Google Drive download 
+    # folder in the Google Drive download; the header of the T0
+    # data file is saved in _ that is returned by the load_T0_data
+    # function
     T0_data, _ = load_T0_data(T0_dat_path)
     
     if verbose:
@@ -105,7 +108,7 @@ def get_a_RLO(T0_DWD):
 
     Returns
     -------
-    DataFrame
+    T0_DWD : DataFrame
         DataFrame with Roche lobe radius added for each DWD.
     '''
     
@@ -133,7 +136,7 @@ def get_a_LISA(T0_DWD, f_LISA_low=1e-4):
         
     Returns
     -------
-    DataFrame
+    T0_DWD : DataFrame
         DataFrame with LISA semimajor axis added for each DWD.
     '''
     # Calculate the semimajor axis at the lower bound of LISA sensitivity frequency
@@ -156,7 +159,7 @@ def get_GW_timescales(T0_DWD):
 
     Returns
     -------
-    DataFrame
+    T0_DWD : DataFrame
         DataFrame with GW inspiral timescales added for each DWD.
     '''
     
@@ -204,7 +207,7 @@ def calc_filter_properties(T0_DWD, ModelParams, verbose=False):
 
     Returns
     -------
-    DataFrame
+    T0_DWD : DataFrame
         DataFrame with calculated properties for each DWD.
     '''
     
@@ -242,7 +245,7 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
     
     Returns
     -------
-    DataFrame
+    T0_DWD_LISA : DataFrame
         DataFrame containing the T0 data for DWDs that are likely LISA sources.
     '''
 
@@ -264,6 +267,27 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
     # the maximum age specified in ModelParams['MaxTDelay']
     T0_DWD_LISA = calc_filter_properties(T0_DWD, ModelParams, verbose=verbose)
     if T0_DWD_LISA.empty:
-        raise ValueError("No DWDs found that will evolve to the LISA band before the maximum age. Check the input parameters or data file.")
+        raise ValueError("No DWDs found that will evolve to the LISA band before the maximum age. Check the input parameters or T0 data file.")
 
     return T0_DWD_LISA
+
+def get_N_Gx_sample(T0_DWD_LISA, ModelParams):
+    '''Returns the number of DWDs in the Galaxy based on the model parameters.
+
+    Parameters
+    ----------
+    T0_DWD_LISA : DataFrame
+        DataFrame containing the T0 data for DWDs that are likely LISA sources.
+    ModelParams : dict
+        Dictionary containing model parameters including 'RunSubType'.
+    
+    Returns
+    -------
+    N_DWD_Gx : int
+        Number of DWDs in the Galaxy.
+    '''
+    mass_norm  = get_mass_norm(IC_model, binary_fraction=0.5)
+    NStarsPerRun    = GalaxyParams['MGal']/MassNorm
+    
+    
+    return N_DWD_Gx

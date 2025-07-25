@@ -40,6 +40,8 @@ gx = galaxy.Galaxy(ModelParams=ModelParams, T0_dat_path=T0_dat_path)
 
 # Load possible LISA sources
 try:
-    T0_DWD_LISA = gx.load_possible_LISA_sources()
+    gx.load_possible_LISA_sources()
 except ValueError as ve:
     print(f"ValueError: {ve}")
+
+print(gx.T0_DWD_LISA)
