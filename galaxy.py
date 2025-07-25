@@ -1,7 +1,7 @@
 """A Class that represents a Milky-Way-like galaxy."""
 
 import numpy as np
-import LISA_preselect
+import pop_create
 
 __all__ = ['Galaxy']
 
@@ -32,7 +32,7 @@ class Galaxy:
         if self.T0_dat_path is None:
             raise ValueError("T0 data path is not specified.")
         try:
-            self.T0_DWD_LISA = LISA_preselect.get_possible_T0_LISA_sources(self.ModelParams, self.T0_dat_path, verbose=True)
+            self.T0_DWD_LISA = pop_create.get_possible_T0_LISA_sources(self.ModelParams, self.T0_dat_path, verbose=True)
         except Exception as e:
             raise IOError(f"Failed to load T0 data from {self.T0_dat_path}: {e}")
 
@@ -44,7 +44,7 @@ class Galaxy:
         
         try:
             # Assuming T0 data is in a format that can be read into a DataFrame
-            T0_DWD = LISA_preselect.get_T0_DWDs(self.T0_dat_path, verbose=True)
+            T0_DWD = pop_create.get_T0_DWDs(self.T0_dat_path, verbose=True)
             return T0_DWD
         except Exception as e:
             raise IOError(f"Failed to load T0 data from {self.T0_dat_path}: {e}")
@@ -57,15 +57,27 @@ class Galaxy:
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
         
-        # 
+        # based on the model parameters, and selected galaxy mass, calculate the number of DWDs in the Galaxy
+        self.N_DWD_Gx = pop_create.get_N_Gx_sample(self.T0_DWD_LISA, self.ModelParams)
 
     # Implement calculation of CDFs
     #def calculate_CDFs(self):
 
     # Maybe also implement default CDF for project w/ Besancon model
 
-    # Assign Galaxy positions
-    #def assign_positions(self, n_points):
+    # Create Galaxy
+    def create_galaxy(self, write_path=None):
+        """Creates a DataFrame containing present-day DWDs in the Galaxy."""
+        if self.T0_DWD_LISA is None:
+            raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
+        
+        # Calculate the number of DWDs in the Galaxy
+        self.calculate_N_DWD_Gx()
+        
+        # Create the galaxy component DataFrame
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, write_path)
+        
+        return None
 
     # Calculate SNRs from legwork
     #def calculate_SNRs(self, T0_DWD_LISA):

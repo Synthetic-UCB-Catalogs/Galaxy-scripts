@@ -1,5 +1,6 @@
+import numpy as np
+import h5py
 def get_bin_frac_ratio(IC_model, binary_fraction=0.5):
-    import numpy as np
     from scipy.interpolate import CubicSpline
 
     # these are the hard coded ratios based on initial conditions sampling
@@ -97,3 +98,120 @@ def get_mass_norm(IC_model, binary_fraction=0.5):
     mass_total = mass_binaries[IC_model] * (1 + ratio)
 
     return mass_total
+
+
+def galaxy_params(key):
+    '''Returns the parameters for the Galaxy based on the key provided.
+    Parameters
+    ----------
+    key : str
+        The key for the parameter to retrieve. Possible keys include:
+        'MGal', 'MBulge', 'MBulge2', 'MHalo', 'RGalSun', 'ZGalSun'.
+
+    Returns
+    ------- 
+    float or None
+        The requested parameter value, or None if the key is not found.
+    '''
+
+    GalaxyParams = {'MGal': 6.43e10, #From Licquia and Newman 2015
+                'MBulge': 6.1e9, #From Robin+ 2012, metal-rich bulge
+                'MBulge2': 2.6e8, #From Robin+ 2012, metal-poor bulge
+                'MHalo': 1.4e9, #From Deason+ 2019 (https://ui.adsabs.harvard.edu/abs/2019MNRAS.490.3426D/abstract)
+                'RGalSun': 8.2, #Bland-Hawthorn, Gerhard 2016
+                'ZGalSun': 0.025 #Bland-Hawthorn, Gerhard 2016
+               }
+    
+    return GalaxyParams.get(key, None)
+
+
+def Besancon_params(key):
+   '''Returns the parameters for the Besancon model based on the key provided.
+   Parameters
+   ----------
+   key : str
+       The key for the parameter to retrieve. Possible keys include:
+       'BinName', 'AgeMin', 'AgeMax', 'XRange', 'YRange', 'RRange',
+       'ZRange', 'RNPoints', 'ZNPoints', 'FeHMean', 'FeHStD',
+       'Rho0ParamSetMSunPcM3', 'SigmaWKmS', 'EpsSetThin', 'EpsHalo',
+       'dFedR', 'CSVNames'.
+   Returns
+   -------
+   np.ndarray or None
+       The requested parameter as a numpy array, or None if the key is not found.
+   '''
+   
+   BesanconParams = {
+    'BinName':np.array(['ThinDisk1', 'ThinDisk2','ThinDisk3','ThinDisk4','ThinDisk5','ThinDisk6','ThinDisk7','ThickDisk','Halo','Bulge']),
+    'AgeMin': 1000.*np.array([0,0.15,1,2,3,5,7,10,14,8],dtype='float64'),
+    'AgeMax': 1000.*np.array([0.15,1.,2.,3.,5.,7.,10.,10.,14.,10],dtype='float64'),
+    'XRange': np.array([30,30,30,30,30,30,30,30,50,5],dtype='float64'),
+    'YRange': np.array([30,30,30,30,30,30,30,30,50,5],dtype='float64'),
+    'RRange': np.array([30,30,30,30,30,30,30,30,50,5],dtype='float64'),
+    'ZRange': np.array([4,4,4,4,4,4,4,8,50,3],dtype='float64'),
+    'RNPoints': np.array([1000,1000,1000,1000,1000,1000,1000,1000,1000,500],dtype='int64'),
+    'ZNPoints': np.array([800,800,800,800,800,800,800,800,800,400],dtype='int64'),
+    'FeHMean': np.array([0.01,0.03,0.03,0.01,-0.07,-0.14,-0.37,-0.78,-1.78,0.00],dtype='float64'),
+    'FeHStD': np.array([0.12,0.12,0.10,0.11,0.18,0.17,0.20,0.30,0.50,0.40],dtype='float64'),
+    'Rho0ParamSetMSunPcM3': np.array([1.888e-3,5.04e-3,4.11e-3,2.84e-3,4.88e-3,5.02e-3,9.32e-3,2.91e-3,9.2e-6],dtype='float64'), #Czekaj2014
+    'SigmaWKmS': np.array([6,8,10,13.2,15.8,17.4,17.5],dtype='float64'),
+    'EpsSetThin': np.array([0.0140, 0.0268, 0.0375, 0.0551, 0.0696, 0.0785, 0.0791],dtype='float64'),
+    'EpsHalo': np.array([0.76],dtype='float64'),
+    'dFedR': np.array([-0.07,-0.07,-0.07,-0.07,-0.07,-0.07,-0.07,0,0,0],dtype='float64'),
+    'CSVNames':np.array(['GalTestThin1.csv','GalTestThin2.csv','GalTestThin3.csv','GalTestThin4.csv','GalTestThin5.csv','GalTestThin6.csv','GalTestThin7.csv','GalTestThick.csv','GalTestHalo.csv','GalTestBulge.csv']),
+    'NormCSet': [75107132.47035658, 338372651.3889757, 272616301.5304108, 187101048.78214946, 320793654.3767256, 329736969.56415313, 612154207.0001729, 7357543.467451542, 47008.07057443722, 1200277748.5793166],
+    'BinMasses' : [573793912.9393324, 2988609452.097608, 3369164425.0053015, 3397558456.9258327, 7358242977.7614, 8530537681.592255, 15957925274.598352, 14364167819.07992, 1400000000.0, 6360000000.0],
+    'BinMassFractions': [0.00892370004571279, 0.04647915166559266, 0.05239758048219754, 0.05283916729278122, 0.11443612718135926, 0.13266777109785777, 0.24817924221770377, 0.2233929676373238, 0.02177293934681182, 0.09891135303265941],
+    'Alpha': 78.9 * (np.pi / 180),  # Robin+2012
+    'Beta': 3.6 * (np.pi / 180),   # Robin+2012
+    'Gamma': 91.3 * (np.pi / 180)  # Robin+2012
+    }
+   
+   return BesanconParams.get(key, None)
+
+   
+#Routine to load data from a 2D-organised hdf5 file
+def load_RZdicts_from_hdf5(file_path):
+    ZCDFDictSet = {}
+    
+    # Open the file for reading
+    with h5py.File(file_path, 'r') as hdf5_file:
+        # Iterate over each bin group
+        for binID in hdf5_file.keys():
+            IDString  = int(binID[4:])
+            bin_group = hdf5_file[binID]
+            
+            # Initialize a dictionary to hold the data for this bin
+            ZCDFDictSet[IDString] = {}
+            
+            # Each bin group contains 'r_###' subgroups
+            for RID in bin_group.keys():
+                r_group   = bin_group[RID]
+                RIDString = int(RID[2:])
+                
+                # Initialize a dict for the data under this r-group
+                data_dict = {}
+                
+                # Each r group has multiple datasets (originally keys in the data_dict)
+                for dataset_key in r_group.keys():
+                    # Read dataset into memory
+                    data_dict[dataset_key] = r_group[dataset_key][...]  # "..." reads the entire dataset
+                
+                # Store this reconstructed dictionary
+                ZCDFDictSet[IDString][RIDString] = data_dict
+    return ZCDFDictSet
+
+def load_Rdicts_from_hdf5(file_path):
+    def quick_load(file_path):
+        with h5py.File(file_path, 'r') as hdf5_file:
+            group_names = sorted(hdf5_file.keys(), key=lambda x: int(x.split('_')[1]))
+            for group_name in group_names:
+                group = hdf5_file[group_name]
+                data_dict = {dataset_name: group[dataset_name][:] for dataset_name in group}
+                yield data_dict
+    ModelRCache     = []
+    for Dict in quick_load('./GalCache/BesanconRData.h5'):
+        # Process each dictionary one at a time
+        ModelRCache.append(Dict)    
+
+    return ModelRCache

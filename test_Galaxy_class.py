@@ -34,7 +34,7 @@ ModelParams = { #Main options
     }
 
 T0_dat_path = '~/Data/Synthetic-UCBs/simulated_binary_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_T0.hdf5'  # Path to the T0 data file
-
+write_path = '~/Data/Synthetic-UCBs/simulated_galaxy_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_Galaxy.hdf5'  # Path to save the Galaxy DataFrame
 # Import the Galaxy class from galaxy
 gx = galaxy.Galaxy(ModelParams=ModelParams, T0_dat_path=T0_dat_path)
 
@@ -44,4 +44,6 @@ try:
 except ValueError as ve:
     print(f"ValueError: {ve}")
 
-print(gx.T0_DWD_LISA)
+print(len(gx.T0_DWD_LISA))
+
+gx.create_galaxy(write_path=write_path)
