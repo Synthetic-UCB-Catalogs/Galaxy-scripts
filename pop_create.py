@@ -193,7 +193,7 @@ def get_GW_timescales(T0_DWD):
     return T0_DWD
 
 
-def calc_filter_properties(T0_DWD, ModelParams, verbose=False):
+def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=False):
     '''Calculates the properties of the DWDs based on the T0 data.
     
     Parameters
@@ -265,7 +265,7 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
     # Calculate orbital properties and GW evolution timescales based on the T0 WDs
     # This will also filter out DWDs that will not evolve to the LISA band before 
     # the maximum age specified in ModelParams['MaxTDelay']
-    T0_DWD_LISA = calc_filter_properties(T0_DWD, ModelParams, verbose=verbose)
+    T0_DWD_LISA = filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=verbose)
     if T0_DWD_LISA.empty:
         raise ValueError("No DWDs found that will evolve to the LISA band before the maximum age. Check the input parameters or T0 data file.")
 
@@ -366,11 +366,31 @@ def filter_LISA_sources(gx_component_df):
 
 
 def GetZ(RFin,iBin,MidRSet,ZCDFDictSet,n_draw):
+    '''Returns the Z values for the DWDs in a galaxy component based on the Besancon parameters.
+    
+    Parameters
+    ----------
+    RFin : array-like
+        Array of radial distances for the DWDs in the component.
+    iBin : int
+        Index of the component in the Besancon parameters.
+    MidRSet : array-like
+        Array of midpoints for the radial distribution of the component.
+    ZCDFDictSet : dict
+        Dictionary containing the vertical distribution parameters for the components.    
+    n_draw : int
+        Number of DWDs to draw Z values for.
+    
+    Returns
+    -------
+    zFin : array-like
+        Array of Z values for the DWDs in the component.'''
     diffs = np.abs(MidRSet[None, :] - RFin[:, None])
     indices = np.argmin(diffs, axis=1).tolist()
     zFin = np.zeros(n_draw)
     # Loop through the indices to get the Z values
     for ii, ind in enumerate(indices):
+        # CDFs start at 1
         MidZSet = ZCDFDictSet[iBin+1][ind]['ZSet']
         RhozCDF = ZCDFDictSet[iBin+1][ind]['RhoCDFSet']
     
@@ -379,10 +399,27 @@ def GetZ(RFin,iBin,MidRSet,ZCDFDictSet,n_draw):
         zFin[ii]   = SignXi*np.interp(Xiz,RhozCDF,MidZSet)   
     return np.array(zFin)
 
-def DrawRZ(iBin,n_draw):
-    ModelRCache = utils.load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5')
-    ZCDFDictSet = utils.load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
+def DrawRZ(iBin,n_draw,ModelRCache, ZCDFDictSet):
+    '''Draws the R and Z values for the DWDs in a galaxy component based on the Besancon parameters.
+    
+    Parameters
+    ----------
+    iBin : int
+        Index of the component in the Besancon parameters.
+    n_draw : int
+        Number of DWDs to draw R and Z values for.
+    ModelRCache : dict
+        Dictionary containing the radial distribution parameters for the galaxy components.
+    ZCDFDictSet : dict
+        Dictionary containing the vertical distribution parameters for the components.
 
+    Returns
+    -------
+    RFin : array-like
+        Array of R values for the DWDs in the component.
+    zFin : array-like
+        Array of Z values for the DWDs in the component.
+    '''
     MidRSet    = ModelRCache[iBin]['MidRSet']
     RCDFSet    = ModelRCache[iBin]['RCDFSet']
     
@@ -395,8 +432,7 @@ def DrawRZ(iBin,n_draw):
     return RFin,zFin
 
 
-def draw_positions(gx_component, n_samp):
-
+def draw_positions(gx_component, n_samp, ModelRCache, ZCDFDictSet):
     '''Draws positions for the DWDs in a galaxy component based on the Besancon parameters.
     
     Parameters
@@ -405,6 +441,10 @@ def draw_positions(gx_component, n_samp):
         Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
     n_samp : int
         Number of DWDs in the Galaxy for this component.
+    ModelRCache : dict
+        Dictionary containing the radial distribution parameters for the galaxy components.
+    ZCDFDictSet : dict
+        Dictionary containing the vertical distribution parameters for the galaxy components.
     
     Returns
     -------
@@ -412,25 +452,25 @@ def draw_positions(gx_component, n_samp):
         DataFrame containing the positions of the DWDs in the component.
     '''
     iBin = utils.Besancon_params('BinName').tolist().index(gx_component)
-    R, Z = DrawRZ(iBin, n_samp)
+    R, Z = DrawRZ(iBin, n_samp, ModelRCache, ZCDFDictSet)
 
     if gx_component == 'Bulge':
 
         alpha = utils.Besancon_params('Alpha')
 
-        Th = 2 * np.pi * np.random.uniform(n_samp)
+        Th = np.random.uniform(0, 2*np.pi, n_samp)
         XPrime = R * np.cos(Th)
         YPrime = R * np.sin(Th)
         ZPrime = Z
         #ASSUMING THE ALPHA ANGLE IS ALONG THE GALACTIC ROTATION - CHECK DWEK
-        X_set  = -Z * np.sin(alpha) + XPrime * np.cos(alpha)
-        Y_set  = Z * np.cos(alpha) + XPrime * np.sin(alpha)
+        X_set  = -ZPrime * np.sin(alpha) + XPrime * np.cos(alpha)
+        Y_set  = ZPrime * np.cos(alpha) + XPrime * np.sin(alpha)
         Z_set  = -YPrime
         R_set  = np.sqrt(XPrime**2 + ZPrime**2)
     else:
         R_set = R
         Z_set = Z
-        Th_set = 2 * np.pi * np.random.uniform(n_samp)
+        Th_set = np.random.uniform(0, 2*np.pi, n_samp)
         X_set = R_set * np.cos(Th_set)
         Y_set = R_set * np.sin(Th_set)
     
@@ -438,21 +478,23 @@ def draw_positions(gx_component, n_samp):
     Y_rel     = Y_set
     Z_rel     = Z_set + utils.galaxy_params('ZGalSun')
     
-    R_rel     = np.sqrt(X_rel**2 + Y_rel**2 + Z_rel**2)
-    Gal_b     = np.arcsin(Z_rel/R_rel)
+    dist     = np.sqrt(X_rel**2 + Y_rel**2 + Z_rel**2)
+    Gal_b     = np.arcsin(Z_rel/dist)
     Gal_l     = np.zeros_like(Gal_b)
 
     disk_pos_mask = Y_rel>=0
     disk_neg_mask = Y_rel<0
 
-    Gal_l[disk_pos_mask] = np.arccos(X_rel[disk_pos_mask]/(np.sqrt((R_rel[disk_pos_mask])**2 - (Z_rel[disk_pos_mask])**2)))
-    Gal_l[disk_neg_mask]  = 2*np.pi - np.arccos(X_rel[disk_neg_mask]/(np.sqrt((R_rel[disk_neg_mask])**2 - (Z_rel[disk_neg_mask])**2)))
+    Gal_l[disk_pos_mask] = np.arccos(X_rel[disk_pos_mask]/(np.sqrt((dist[disk_pos_mask])**2 - (Z_rel[disk_pos_mask])**2)))
+    Gal_l[disk_neg_mask]  = 2*np.pi - np.arccos(X_rel[disk_neg_mask]/(np.sqrt((dist[disk_neg_mask])**2 - (Z_rel[disk_neg_mask])**2)))
     
     positions = pd.DataFrame({
-        'X': X_rel,
-        'Y': Y_rel,
-        'Z': Z_rel,
-        'R': R_rel,
+        'R': R,
+        'Z': Z,
+        'X_rel': X_rel,
+        'Y_rel': Y_rel,
+        'Z_rel': Z_rel,
+        'dist': dist,
         'Gal_b': Gal_b,
         'Gal_l': Gal_l
     })
@@ -483,7 +525,7 @@ def draw_metallicities(gx_component, n_samp):
     return FeH
 
 
-def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp):
+def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet):
     # Creates a DataFrame containing present-day DWDs in the Galaxy
     gx_component_df = T0_DWD_LISA.sample(n=n_comp, replace=True)
     # assign ages to the component based on the Besancon parameters
@@ -496,7 +538,7 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp):
     gx_component_df['FeH'] = draw_metallicities(gx_component, n_samp=len(gx_component_df))
 
     # draw positions for the component
-    positions = draw_positions(gx_component, n_samp=len(gx_component_df))
+    positions = draw_positions(gx_component, n_samp=len(gx_component_df), ModelRCache=ModelRCache, ZCDFDictSet=ZCDFDictSet)
     gx_component_df = pd.concat([gx_component_df.reset_index(drop=True), positions.reset_index(drop=True)], axis=1)
     positions = None # clear memory
 
@@ -525,6 +567,11 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True):
     '''
     import tqdm
 
+    # Load the radial and vertical distribution parameters for the galaxy components
+    ModelRCache = utils.load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5')
+    ZCDFDictSet = utils.load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
+
+
     for ii, gx_component in enumerate(tqdm.tqdm(utils.Besancon_params('BinName'))):
         n_comp = N_DWD_Gx * utils.Besancon_params('BinMassFractions')[ii]
 
@@ -541,7 +588,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True):
             # If the number of DWDs to sample is too large, we will loop over the sampling
             # to avoid memory issues.
             n_loop = int(n_comp / 1e6)
-            n_left_over = int(n_comp % 1e6)
+            n_left_over = int(n_comp - n_loop * 1e6)
             
             gx_component_df = pd.DataFrame()
             n_comp = int(n_comp / n_loop)
@@ -551,7 +598,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True):
             # do the looping    
             for ii in range(n_loop):
                 # create the galaxy component DataFrame
-                gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp)
+                gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
                 if gx_component_df.empty:
                     gx_component_df = gx
                 else:
@@ -561,17 +608,35 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True):
             # create the last galaxy component DataFrame with the left over DWDs
             if verbose:
                 print(f"Adding {n_left_over} left over DWDs for component {gx_component}")
-            gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over)
+            gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet)
             gx_component_df = pd.concat([gx_component_df, gx], ignore_index=True)
         else:
             # create the galaxy component DataFrame
-            gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp)
+            gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
+        
+        # add the component name to the DataFrame
+        gx_component_df['component'] = gx_component
 
+        # Calculate the strain amplitude for each DWD in the component
+        gx_component_df['h0'] = lw.strain.h_0_n(
+            m_c=lw.utils.chirp_mass(m_1=gx_component_df['mass1'].values * u.Msun,
+                                    m_2=gx_component_df['mass2'].values * u.Msun),
+            f_orb=lw.utils.get_f_orb_from_a(
+                a=gx_component_df['semiMajor_today'].values * u.Rsun,
+                m_1=gx_component_df['mass1'].values * u.Msun,
+                m_2=gx_component_df['mass2'].values * u.Msun
+            ).to(u.Hz),
+            ecc=np.zeros(len(gx_component_df)),
+            dist=gx_component_df['dist'].values * u.kpc,
+            n=2
+        ).flatten()
+        
+        
         if write_path is not None:
             if verbose:
                 print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
             # Save the galaxy component DataFrame to the specified path
-            gx_component_df.to_hdf(write_path, mode='a', key='LISA_DWDs')
+            gx_component_df.to_hdf(write_path, mode='a', append=True, key='LISA_DWDs', format='table')
         else:
             raise Warning("No write path specified. Galaxy will not be saved.")
         # clear the gx_component_df to save memory

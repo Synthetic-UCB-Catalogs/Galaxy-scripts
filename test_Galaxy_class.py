@@ -44,6 +44,4 @@ try:
 except ValueError as ve:
     print(f"ValueError: {ve}")
 
-print(len(gx.T0_DWD_LISA))
-
-gx.create_galaxy(write_path=write_path)
+gx.create_galaxy(write_path=write_path, verbose=False)
