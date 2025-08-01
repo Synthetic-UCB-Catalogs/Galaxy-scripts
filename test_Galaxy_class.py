@@ -35,7 +35,9 @@ ModelParams = { #Main options
     }
 
 T0_dat_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # Path to the T0 data file
-write_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_Galaxy.hdf5'  # Path to save the Galaxy DataFrame
+write_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_Galaxy_LISA_Candidates_Bin_data.csv'  # Path to save the Galaxy DataFrame
+
+
 # Import the Galaxy class from galaxy
 gx = galaxy.Galaxy(ModelParams=ModelParams, T0_dat_path=T0_dat_path)
 
@@ -45,4 +47,4 @@ try:
 except ValueError as ve:
     print(f"ValueError: {ve}")
 
-gx.create_galaxy(write_path=write_path, verbose=False)
+gx.create_galaxy(write_path=write_path, verbose=True, write_h5=False)
