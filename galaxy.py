@@ -66,7 +66,7 @@ class Galaxy:
     # Maybe also implement default CDF for project w/ Besancon model
 
     # Create Galaxy
-    def create_galaxy(self, write_path=None, verbose=False):
+    def create_galaxy(self, write_path=None, verbose=False, write_h5=False):
         """Creates a DataFrame containing present-day DWDs in the Galaxy."""
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
@@ -75,7 +75,7 @@ class Galaxy:
         self.calculate_N_DWD_Gx()
         
         # Create the galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, write_path, verbose=verbose)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, write_path, verbose=verbose, write_h5=write_h5)
         
         return None
 
