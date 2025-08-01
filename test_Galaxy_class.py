@@ -1,4 +1,5 @@
 import galaxy
+import os
 
 # set the model parameters for the Galaxy class
 ModelParams = { #Main options
@@ -14,9 +15,9 @@ ModelParams = { #Main options
                #'RunSubType': 'm2_min_05',
                #'RunSubType': 'qmin_01',
                'RunSubType': 'porb_log_uniform',
-               'Code': 'COSMIC',
+               #'Code': 'COSMIC',
                #'Code': 'METISSE',
-               #'Code': 'SeBa',     
+               'Code': 'SeBa',     
                #'Code': 'SEVN',
                #'Code': 'ComBinE',
                #'Code': 'COMPAS',
@@ -33,8 +34,8 @@ ModelParams = { #Main options
                'NPoints': 1e5 # Number of stars to sample if we just sample present-day stars
     }
 
-T0_dat_path = '~/Data/Synthetic-UCBs/simulated_binary_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_T0.hdf5'  # Path to the T0 data file
-write_path = '~/Data/Synthetic-UCBs/simulated_galaxy_populations/monte_carlo_comparisons/initial_condition_variations/fiducial/COSMIC_Galaxy.hdf5'  # Path to save the Galaxy DataFrame
+T0_dat_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # Path to the T0 data file
+write_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_Galaxy.hdf5'  # Path to save the Galaxy DataFrame
 # Import the Galaxy class from galaxy
 gx = galaxy.Galaxy(ModelParams=ModelParams, T0_dat_path=T0_dat_path)
 
