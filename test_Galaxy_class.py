@@ -9,15 +9,15 @@ ModelParams = { #Main options
                'ImportSimulation': True, #If true, construct the present-day DWD populaiton (as opposed to the MS population)               
                #Simulation options
                'RunWave': 'initial_condition_variations',
-               #'RunSubType': 'fiducial',
+               'RunSubType': 'fiducial',
                #'RunSubType': 'thermal_ecc',
                #'RunSubType': 'uniform_ecc',
                #'RunSubType': 'm2_min_05',
                #'RunSubType': 'qmin_01',
-               'RunSubType': 'porb_log_uniform',
-               #'Code': 'COSMIC',
+               #'RunSubType': 'porb_log_uniform',
+               'Code': 'COSMIC',
                #'Code': 'METISSE',
-               'Code': 'SeBa',     
+               #'Code': 'SeBa',     
                #'Code': 'SEVN',
                #'Code': 'ComBinE',
                #'Code': 'COMPAS',
@@ -47,4 +47,4 @@ try:
 except ValueError as ve:
     print(f"ValueError: {ve}")
 
-gx.create_galaxy(write_path=write_path, verbose=True, write_h5=False)
+gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False)

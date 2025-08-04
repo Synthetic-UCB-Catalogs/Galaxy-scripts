@@ -4,6 +4,7 @@ import legwork as lw
 import pandas as pd
 from rapid_code_load_T0 import load_T0_data
 import utils
+import os
 
 def get_R_WD(M_WD):
     '''Calculates the radius of a white dwarf given its mass using 
@@ -530,7 +531,7 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
     gx_component_df = T0_DWD_LISA.sample(n=n_comp, replace=True)
     # assign ages to the component based on the Besancon parameters
     gx_component_df['age'] = sample_component_ages(gx_component, n_samp=n_comp)
-    
+
     # filter based on GW evolution up to the present day
     gx_component_df = filter_LISA_sources(gx_component_df)
 
@@ -544,7 +545,7 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
 
     return gx_component_df
     
-def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True, write_h5=False):
+def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h5=False):
     '''Creates a DataFrame containing present-day DWDs in the Galaxy
     that have frequencies in the LISA band 
     
@@ -611,7 +612,8 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True, write_h5
             # create the last galaxy component DataFrame with the left over DWDs
             if verbose:
                 print(f"Adding {n_left_over} left over DWDs for component {gx_component}")
-            gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet)
+            gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet)
+            gx_component_df = pd.concat([gx_component_df, gx], ignore_index=True)
             # Calculate the strain amplitude for each DWD in the component
             gx_component_df['h0'] = lw.strain.h_0_n(
                 m_c=lw.utils.chirp_mass(m_1=gx_component_df['mass1'].values * u.Msun,
@@ -642,7 +644,10 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True, write_h5
                     if verbose:
                         print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
                     # Save the galaxy component DataFrame to the specified path
-                    gx_component_df.to_csv(write_path, mode='a')
+                    if not os.path.exists(write_path):
+                        gx_component_df.to_csv(write_path, mode='w', index=False)
+                    else:
+                        gx_component_df.to_csv(write_path, mode='a', header=False, index=False)
                 else:
                     raise Warning("No write path specified. Galaxy will not be saved.")
                 # clear the gx_component_df to save memory
@@ -678,7 +683,10 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=True, write_h5
                     if verbose:
                         print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
                     # Save the galaxy component DataFrame to the specified path
-                    gx_component_df.to_csv(write_path, mode='a')
+                    if not os.path.exists(write_path):
+                        gx_component_df.to_csv(write_path, mode='w', index=False)
+                    else:
+                        gx_component_df.to_csv(write_path, mode='a', header=False, index=False)
                 else:
                     raise Warning("No write path specified. Galaxy will not be saved.")
                 # clear the gx_component_df to save memory
