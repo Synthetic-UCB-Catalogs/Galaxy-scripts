@@ -62,7 +62,6 @@ class Galaxy:
 
     # Implement calculation of CDFs
     #def calculate_CDFs(self):
-
     # Maybe also implement default CDF for project w/ Besancon model
 
     # Create Galaxy
@@ -78,8 +77,4 @@ class Galaxy:
         _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, write_path, verbose=verbose, write_h5=write_h5)
         
         return None
-
-    # Calculate SNRs from legwork
-    #def calculate_SNRs(self, T0_DWD_LISA):
-        # Implement SNR calculation based on the T0 DWD LISA sources
 

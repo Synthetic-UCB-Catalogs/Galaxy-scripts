@@ -78,7 +78,7 @@ def get_T0_DWDs(ModelParams, T0_dat_path, verbose=False):
     T0_data, _ = load_T0_data(T0_dat_path)
     
     if verbose:
-        print(f"Loaded T0 data with {len(T0_data)} entries.")
+        print(f"Loaded T0 data with {len(T0_data)} entries for the {ModelParams['Code']} {ModelParams['RunWave']} {ModelParams['RunSubType']} run.")
 
     # Handle the DWD selection based on the Code in ModelParams
     # and apply a semimajor axis cut as specified in ModelParams
@@ -544,7 +544,101 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
     positions = None # clear memory
 
     return gx_component_df
+
+def get_legwork_calculations(gx, t_obs=4 * u.yr):
+    '''Calculates the legwork SNR and h0 for the DWDs in a galaxy component.
+
+    Parameters
+    ----------
+    gx : DataFrame
+        DataFrame containing the DWDs in a galaxy component.
+    t_obs : Quantity, optional
+        Observation time for the legwork calculations. Default is 4 years.
+
+    Returns
+    -------
+    gx : DataFrame
+        DataFrame with legwork SNR and h0 calculated for each DWD.
+    '''
+    # Calculate the h0 strain for each DWD
+    sources = lw.source.Source(
+        m_1=gx['mass1'].values * u.Msun, 
+        m_2=gx['mass1'].values * u.Msun, 
+        ecc=np.zeros(len(gx)), 
+        dist=gx['dist'].values * u.kpc, 
+        f_orb=lw.utils.get_f_orb_from_a(
+            a=gx['semiMajor_today'].values * u.Rsun,
+            m_1=gx['mass1'].values * u.Msun,
+            m_2=gx['mass2'].values * u.Msun
+            ).to(u.Hz),
+        interpolate_g=False
+        )
     
+    gx['h0'] = sources.get_h_c_n(harmonics=[2]).flatten()
+    gx['legwork_SNR'] = sources.get_snr(t_obs=t_obs, confusion_noise=None)
+    
+    return gx
+
+def write_galaxy(gx, write_path, gx_component, write_h5=False, verbose=False):
+    '''Writes the galaxy DataFrame to a file.
+    
+    Parameters
+    ----------
+    gx : DataFrame
+        DataFrame containing the DWDs in the Galaxy.
+    write_path : str
+        Path to save the DataFrame containing the DWDs in the Galaxy.
+    gx_component : str
+        Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
+    write_h5 : bool, optional
+        If True, writes the DataFrame to an HDF5 file. If False, writes to a CSV file. Default is False.
+    verbose : bool, optional
+        If True, prints additional information during processing. Default is False.
+    
+    Returns
+    -------
+    None
+    '''
+    legwork_mask = gx['legwork_SNR'] > 7
+
+    if write_h5:
+        if write_path is not None:
+            if verbose:
+                print(f"Writing {len(gx)} DWDs for component {gx_component} to {write_path}")
+            # Save the galaxy component DataFrame to the specified path
+            gx.to_hdf(write_path+'_Galaxy_AllDWDs.h5', mode='a', append=True, key='AllDWDs', format='table')
+
+            if verbose:
+                print(f"Writing {len(gx[legwork_mask])} DWDs for component {gx_component} that are likely LISA sources to {write_path}_Galaxy_LISA_DWDs.h5")
+            gx[legwork_mask].to_hdf(write_path+'_Galaxy_LISA_DWDs.h5', mode='a', append=True, key='LISA_DWDs', format='table')
+        else:
+            raise Warning("No write path specified. Galaxy will not be saved.")
+        # clear the gx_component_df to save memory
+        gx = None
+    else:
+        if write_path is not None:
+            # Save the galaxy component DataFrame to the specified path
+            if verbose:
+                print(f"Writing {len(gx)} DWDs for component {gx_component} to {write_path}")
+            if not os.path.exists(write_path+'_Galaxy_AllDWDs.csv'):
+                gx.to_csv(write_path+'_Galaxy_AllDWDs.csv', mode='w', index=False)
+            else:
+                gx.to_csv(write_path+'_Galaxy_AllDWDs.csv', mode='a', header=False, index=False)
+
+            # Save the possible LISA sources to a separate file
+            if verbose:
+                print(f"Writing {len(gx[legwork_mask])} DWDs for component {gx_component} that are likely LISA sources to {write_path}_Galaxy_LISA_DWDs.csv")
+            if not os.path.exists(write_path+'_Galaxy_LISA_DWDs.csv'):
+                gx[legwork_mask].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='w', index=False)
+            else:
+                gx[legwork_mask].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='a', header=False, index=False)
+        else:
+            raise Warning("No write path specified. Galaxy will not be saved.")
+        # clear the gx_component_df to save memory
+        gx = None
+
+    return None
+
 def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h5=False):
     '''Creates a DataFrame containing present-day DWDs in the Galaxy
     that have frequencies in the LISA band 
@@ -575,7 +669,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
     ModelRCache = utils.load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5')
     ZCDFDictSet = utils.load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
 
-
+    print(f"Creating a Galaxy with {N_DWD_Gx} DWDs total. For verbose output, set verbose=True in create_galaxy function call.")
     for ii, gx_component in enumerate(tqdm.tqdm(utils.Besancon_params('BinName'))):
         n_comp = N_DWD_Gx * utils.Besancon_params('BinMassFractions')[ii]
 
@@ -587,14 +681,11 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
         if n_comp <= 0:
             print(f"Component {gx_component} has no DWDs to sample")
         
-        
         if n_comp > 1e6:
             # If the number of DWDs to sample is too large, we will loop over the sampling
             # to avoid memory issues.
             n_loop = int(n_comp / 1e6)
             n_left_over = int(n_comp - n_loop * 1e6)
-            
-            gx_component_df = pd.DataFrame()
             n_comp = int(n_comp / n_loop)
             if verbose:
                 print(f"Reducing number of DWDs to sample for component {gx_component} by looping {n_loop} times with {n_comp}")
@@ -603,93 +694,42 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
             for ii in range(n_loop):
                 # create the galaxy component DataFrame
                 gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
-                if gx_component_df.empty:
-                    gx_component_df = gx
-                else:
-                    gx_component_df = pd.concat([gx_component_df, gx], ignore_index=True)
-                gx = None # clear memory
-            
+                
+                # Calculate the strain amplitude and SNR without confusion for each DWD in the component
+                gx = get_legwork_calculations(gx)
+
+                # assign the component name to the DataFrame
+                gx['component'] = gx_component
+
+                # write the sub-loop
+                _ = write_galaxy(gx, write_path, gx_component, write_h5=write_h5, verbose=verbose)  
+                
             # create the last galaxy component DataFrame with the left over DWDs
             if verbose:
                 print(f"Adding {n_left_over} left over DWDs for component {gx_component}")
             gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet)
-            gx_component_df = pd.concat([gx_component_df, gx], ignore_index=True)
-            # Calculate the strain amplitude for each DWD in the component
-            gx_component_df['h0'] = lw.strain.h_0_n(
-                m_c=lw.utils.chirp_mass(m_1=gx_component_df['mass1'].values * u.Msun,
-                                        m_2=gx_component_df['mass2'].values * u.Msun),
-                f_orb=lw.utils.get_f_orb_from_a(
-                    a=gx_component_df['semiMajor_today'].values * u.Rsun,
-                    m_1=gx_component_df['mass1'].values * u.Msun,
-                    m_2=gx_component_df['mass2'].values * u.Msun
-                ).to(u.Hz),
-                ecc=np.zeros(len(gx_component_df)),
-                dist=gx_component_df['dist'].values * u.kpc,
-                n=2
-            ).flatten()
-            gx_component_df['component'] = gx_component
+            
+            # Calculate the strain amplitude and SNR without confusion for each DWD in the component
+            gx = get_legwork_calculations(gx)
 
-            if write_h5:
-                if write_path is not None:
-                    if verbose:
-                        print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
-                    # Save the galaxy component DataFrame to the specified path
-                    gx_component_df.to_hdf(write_path, mode='a', append=True, key='LISA_DWDs', format='table')
-                else:
-                    raise Warning("No write path specified. Galaxy will not be saved.")
-                # clear the gx_component_df to save memory
-                gx_component_df = None
-            else:
-                if write_path is not None:
-                    if verbose:
-                        print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
-                    # Save the galaxy component DataFrame to the specified path
-                    if not os.path.exists(write_path):
-                        gx_component_df.to_csv(write_path, mode='w', index=False)
-                    else:
-                        gx_component_df.to_csv(write_path, mode='a', header=False, index=False)
-                else:
-                    raise Warning("No write path specified. Galaxy will not be saved.")
-                # clear the gx_component_df to save memory
-            gx_component_df = None
+            # assign the component name to the DataFrame
+            gx['component'] = gx_component
+
+            # write the sub-loop
+            _ = write_galaxy(gx, write_path, gx_component, write_h5=write_h5, verbose=verbose)
+            
         else:
             # create the galaxy component DataFrame
             gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
-            gx_component_df['h0'] = lw.strain.h_0_n(
-                    m_c=lw.utils.chirp_mass(m_1=gx_component_df['mass1'].values * u.Msun,
-                                            m_2=gx_component_df['mass2'].values * u.Msun),
-                    f_orb=lw.utils.get_f_orb_from_a(
-                        a=gx_component_df['semiMajor_today'].values * u.Rsun,
-                        m_1=gx_component_df['mass1'].values * u.Msun,
-                        m_2=gx_component_df['mass2'].values * u.Msun
-                    ).to(u.Hz),
-                    ecc=np.zeros(len(gx_component_df)),
-                    dist=gx_component_df['dist'].values * u.kpc,
-                    n=2
-                ).flatten()
+            
+            # Calculate the strain amplitude and SNR without confusion for each DWD in the component
+            gx_component_df = get_legwork_calculations(gx_component_df)
+            
+            # assign the component name to the DataFrame
             gx_component_df['component'] = gx_component
-            if write_h5:
-                if write_path is not None:
-                    if verbose:
-                        print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
-                    # Save the galaxy component DataFrame to the specified path
-                    gx_component_df.to_hdf(write_path, mode='a', append=True, key='LISA_DWDs', format='table')
-                else:
-                    raise Warning("No write path specified. Galaxy will not be saved.")
-                # clear the gx_component_df to save memory
-                gx_component_df = None
-            else:
-                if write_path is not None:
-                    if verbose:
-                        print(f"Writing {len(gx_component_df)} DWDs for component {gx_component} to {write_path}")
-                    # Save the galaxy component DataFrame to the specified path
-                    if not os.path.exists(write_path):
-                        gx_component_df.to_csv(write_path, mode='w', index=False)
-                    else:
-                        gx_component_df.to_csv(write_path, mode='a', header=False, index=False)
-                else:
-                    raise Warning("No write path specified. Galaxy will not be saved.")
-                # clear the gx_component_df to save memory
-            gx_component_df = None
+            
+            # write the galaxy component DataFrame to a file
+            _ = write_galaxy(gx_component_df, write_path, gx_component, write_h5=write_h5, verbose=verbose)
+            
 
     return None
