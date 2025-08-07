@@ -9,12 +9,12 @@ ModelParams = { #Main options
                'ImportSimulation': True, #If true, construct the present-day DWD populaiton (as opposed to the MS population)               
                #Simulation options
                'RunWave': 'initial_condition_variations',
-               #'RunSubType': 'fiducial',
+               'RunSubType': 'fiducial',
                #'RunSubType': 'thermal_ecc',
                #'RunSubType': 'uniform_ecc',
                #'RunSubType': 'm2_min_05',
                #'RunSubType': 'qmin_01',
-               'RunSubType': 'porb_log_uniform',
+               #'RunSubType': 'porb_log_uniform',
                #'Code': 'COSMIC',
                #'Code': 'METISSE',
                'Code': 'SeBa',     
@@ -34,8 +34,9 @@ ModelParams = { #Main options
                'NPoints': 1e5 # Number of stars to sample if we just sample present-day stars
     }
 
-T0_dat_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # Path to the T0 data file
-write_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_Galaxy_LISA_Candidates_Bin_Data.csv'  # Path to save the Galaxy DataFrame
+
+T0_dat_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
+write_path = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
 
 
 # Import the Galaxy class from galaxy
@@ -47,4 +48,4 @@ try:
 except ValueError as ve:
     print(f"ValueError: {ve}")
 
-gx.create_galaxy(write_path=write_path, verbose=True, write_h5=False)
+gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False)
