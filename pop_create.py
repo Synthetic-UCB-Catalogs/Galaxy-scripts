@@ -681,11 +681,14 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
         if n_comp <= 0:
             print(f"Component {gx_component} has no DWDs to sample")
         
-        if n_comp > 1e6:
+        loop_length = 1e6
+        if n_comp > loop_length:
             # If the number of DWDs to sample is too large, we will loop over the sampling
             # to avoid memory issues.
-            n_loop = int(n_comp / 1e6)
-            n_left_over = int(n_comp - n_loop * 1e6)
+            n_loop = int(n_comp / loop_length)
+            n_left_over = int(n_comp - n_loop * loop_length)
+            
+            gx_component_df = pd.DataFrame()
             n_comp = int(n_comp / n_loop)
             if verbose:
                 print(f"Reducing number of DWDs to sample for component {gx_component} by looping {n_loop} times with {n_comp}")

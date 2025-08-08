@@ -15,3 +15,4 @@
 # 5) Unignore some directories
 #!Data
 #!WDData
+.DS_Store
