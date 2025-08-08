@@ -295,15 +295,48 @@ def get_N_Gx_sample(T0_DWD_LISA, ModelParams):
     
     return N_DWD_Gx
 
+def get_component_stats(gx_component, gx_component_df, ModelParams):
+    '''Gets the statistics for a given galaxy component.
+    
+    Parameters
+    ----------
+    gx_component : str
+        Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
+    gx_component_df : DataFrame
+        DataFrame containing the DWDs in the component.
+    ModelParams : dict
+        Dictionary containing model parameters including 'DeltaTGalMyr'.
+
+    Returns
+    -------
+    stats : DataFrame
+        DataFrame containing the statistics for the component.
+    '''
+
+    ii = utils.Besancon_params('BinName').tolist().index(gx_component)
+    NSubBins = int(np.floor((utils.Besancon_params('AgeMax')[ii] - utils.Besancon_params('AgeMin')[ii])/ModelParams['DeltaTGalMyr']) + 1)
+    bin_edges = np.linspace(utils.Besancon_params('AgeMin')[ii], utils.Besancon_params('AgeMax')[ii], NSubBins)   
+    bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+    gx_counts = gx_component_df.copy()
+    gx_counts['age_bin_ind'] = np.digitize(gx_counts['age'].values, bin_edges, right=True)
+
+    DWD_counts = gx_counts['age_bin_ind'].value_counts().sort_index().reindex(range(0, len(bin_edges[:-1])), fill_value=0)
+    stats = pd.DataFrame(np.array([ii*np.ones_like(bin_centers), bin_centers, DWD_counts]).T, columns=['BinID', 'SubBinMidAge', 'SubBinNDWDsReal'])
+
+
+    return stats
+
 
 def sample_component_ages(gx_component, n_samp):
     '''Assigns ages to the DWDs in a given component based on the Besancon parameters.
+    
     Parameters
     ----------
     gx_component : str
         Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
     n_samp : int
         Number of DWDs in the Galaxy for this component.
+
     Returns
     -------
     ages : array-like
@@ -399,6 +432,7 @@ def GetZ(RFin,iBin,MidRSet,ZCDFDictSet,n_draw):
         SignXi     = np.sign(2*(np.random.rand() - 0.5))
         zFin[ii]   = SignXi*np.interp(Xiz,RhozCDF,MidZSet)   
     return np.array(zFin)
+
 
 def DrawRZ(iBin,n_draw,ModelRCache, ZCDFDictSet):
     '''Draws the R and Z values for the DWDs in a galaxy component based on the Besancon parameters.
@@ -502,6 +536,7 @@ def draw_positions(gx_component, n_samp, ModelRCache, ZCDFDictSet):
     
     return positions
 
+
 def draw_metallicities(gx_component, n_samp):
     '''Draws metallicities for the DWDs in a galaxy component based on the Besancon parameters.
     
@@ -527,6 +562,27 @@ def draw_metallicities(gx_component, n_samp):
 
 
 def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet):
+    '''Creates a DataFrame containing the DWDs in a specific galaxy component by sampling
+    ages, metallicities, and positions based on the Besancon parameters.
+    
+    Parameters
+    ----------
+    T0_DWD_LISA : DataFrame
+        DataFrame containing the T0 data for DWDs that are likely LISA sources.
+    gx_component : str
+        Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
+    n_comp : int
+        Number of DWDs in the Galaxy for this component.
+    ModelRCache : dict
+        Dictionary containing the radial distribution parameters for the galaxy components.
+    ZCDFDictSet : dict
+        Dictionary containing the vertical distribution parameters for the galaxy components.
+    
+    Returns
+    -------
+    gx_component_df : DataFrame
+        DataFrame containing the DWDs in the specified galaxy component with assigned ages, metallicities, and positions.
+    '''
     # Creates a DataFrame containing present-day DWDs in the Galaxy
     gx_component_df = T0_DWD_LISA.sample(n=n_comp, replace=True)
     # assign ages to the component based on the Besancon parameters
@@ -579,7 +635,7 @@ def get_legwork_calculations(gx, t_obs=4 * u.yr):
     
     return gx
 
-def write_galaxy(gx, write_path, gx_component, write_h5=False, verbose=False):
+def write_galaxy(gx, write_path, gx_component, stats, write_h5=False, verbose=False):
     '''Writes the galaxy DataFrame to a file.
     
     Parameters
@@ -590,6 +646,8 @@ def write_galaxy(gx, write_path, gx_component, write_h5=False, verbose=False):
         Path to save the DataFrame containing the DWDs in the Galaxy.
     gx_component : str
         Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
+    stats : DataFrame
+        DataFrame containing the number of LISA DWDs for the component.
     write_h5 : bool, optional
         If True, writes the DataFrame to an HDF5 file. If False, writes to a CSV file. Default is False.
     verbose : bool, optional
@@ -611,6 +669,10 @@ def write_galaxy(gx, write_path, gx_component, write_h5=False, verbose=False):
             if verbose:
                 print(f"Writing {len(gx[legwork_mask])} DWDs for component {gx_component} that are likely LISA sources to {write_path}_Galaxy_LISA_DWDs.h5")
             gx[legwork_mask].to_hdf(write_path+'_Galaxy_LISA_DWDs.h5', mode='a', append=True, key='LISA_DWDs', format='table')
+
+            if verbose:
+                print(f"Writing statistics for component {gx_component} to {write_path}_Galaxy_LISA_Candidates_Bin_Data.h5")
+            stats.to_hdf(write_path+'_Galaxy_LISA_Candidates_Bin_Data.h5', mode='a', append=True, key='BinData', format='table')
         else:
             raise Warning("No write path specified. Galaxy will not be saved.")
         # clear the gx_component_df to save memory
@@ -632,6 +694,14 @@ def write_galaxy(gx, write_path, gx_component, write_h5=False, verbose=False):
                 gx[legwork_mask].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='w', index=False)
             else:
                 gx[legwork_mask].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='a', header=False, index=False)
+
+            # Save the statistics for the component to a separate file
+            if verbose:
+                print(f"Writing statistics for component {gx_component} to {write_path}_Galaxy_LISA_Candidates_Bin_Data.csv")
+            if not os.path.exists(write_path+'_Galaxy_LISA_Candidates_Bin_Data.csv'):
+                stats.to_csv(write_path+'_Galaxy_LISA_Candidates_Bin_Data.csv', mode='w', index=False)
+            else:
+                stats.to_csv(write_path+'_Galaxy_LISA_Candidates_Bin_Data.csv', mode='a', header=False, index=False)
         else:
             raise Warning("No write path specified. Galaxy will not be saved.")
         # clear the gx_component_df to save memory
@@ -639,7 +709,7 @@ def write_galaxy(gx, write_path, gx_component, write_h5=False, verbose=False):
 
     return None
 
-def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h5=False):
+def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=False, write_h5=False):
     '''Creates a DataFrame containing present-day DWDs in the Galaxy
     that have frequencies in the LISA band 
     
@@ -647,10 +717,10 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
     ----------
     T0_DWD_LISA : DataFrame
         DataFrame containing the T0 data for DWDs that are likely LISA sources.
-    gx_component : str
-        Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
     N_DWD_Gx : int
         Number of DWDs in the Galaxy for this component.
+    ModelParams : dict
+        Dictionary containing model parameters including 'RunSubType'.
     write_path : str
         Path to save the DataFrame containing the DWDs in the Galaxy.
     verbose : bool, optional
@@ -693,10 +763,18 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
             if verbose:
                 print(f"Reducing number of DWDs to sample for component {gx_component} by looping {n_loop} times with {n_comp}")
 
-            # do the looping    
+            # do the looping
+            stats_tot = pd.DataFrame()    
             for ii in range(n_loop):
                 # create the galaxy component DataFrame
                 gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
+
+                # get the statistical data of number of DWDs in a finer time sampling grid
+                stats = get_component_stats(gx_component, gx, ModelParams)
+                if stats_tot.empty:
+                    stats_tot = stats
+                else:
+                    stats_tot['SubBinNDWDsReal'] = stats_tot['SubBinNDWDsReal'].values + stats['SubBinNDWDsReal'].values
                 
                 # Calculate the strain amplitude and SNR without confusion for each DWD in the component
                 gx = get_legwork_calculations(gx)
@@ -705,13 +783,17 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
                 gx['component'] = gx_component
 
                 # write the sub-loop
-                _ = write_galaxy(gx, write_path, gx_component, write_h5=write_h5, verbose=verbose)  
+                _ = write_galaxy(gx, write_path, gx_component, stats, write_h5=write_h5, verbose=verbose)  
                 
             # create the last galaxy component DataFrame with the left over DWDs
             if verbose:
                 print(f"Adding {n_left_over} left over DWDs for component {gx_component}")
             gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet)
-            
+
+            # get the statistical data of number of DWDs in a finer time sampling grid
+            stats = get_component_stats(gx_component, gx, ModelParams)
+            stats_tot['SubBinNDWDsReal'] = stats_tot['SubBinNDWDsReal'].values + stats['SubBinNDWDsReal'].values
+
             # Calculate the strain amplitude and SNR without confusion for each DWD in the component
             gx = get_legwork_calculations(gx)
 
@@ -719,12 +801,15 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
             gx['component'] = gx_component
 
             # write the sub-loop
-            _ = write_galaxy(gx, write_path, gx_component, write_h5=write_h5, verbose=verbose)
+            _ = write_galaxy(gx, write_path, gx_component, stats, write_h5=write_h5, verbose=verbose)
             
         else:
             # create the galaxy component DataFrame
             gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
-            
+
+            # get the statistical data of number of DWDs in a finer time sampling grid
+            stats_tot = get_component_stats(gx_component, gx, ModelParams)
+
             # Calculate the strain amplitude and SNR without confusion for each DWD in the component
             gx_component_df = get_legwork_calculations(gx_component_df)
             
@@ -732,7 +817,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, write_path, verbose=False, write_h
             gx_component_df['component'] = gx_component
             
             # write the galaxy component DataFrame to a file
-            _ = write_galaxy(gx_component_df, write_path, gx_component, write_h5=write_h5, verbose=verbose)
+            _ = write_galaxy(gx_component_df, write_path, gx_component, stats, write_h5=write_h5, verbose=verbose)
             
 
     return None

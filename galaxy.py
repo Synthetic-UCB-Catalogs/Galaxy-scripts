@@ -74,7 +74,7 @@ class Galaxy:
         self.calculate_N_DWD_Gx()
         
         # Create the galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, write_path, verbose=verbose, write_h5=write_h5)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
         
         return None
 
