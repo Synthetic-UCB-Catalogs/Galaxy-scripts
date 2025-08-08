@@ -319,7 +319,7 @@ def sample_component_ages(gx_component, n_samp):
     ages = np.random.uniform(t_lo, t_hi, n_samp)
     return ages
 
-def filter_LISA_sources(gx_component_df):
+def filter_possible_LISA_sources(gx_component_df):
     '''Filters the DWDs in a galaxy component DataFrame to those that are likely LISA sources.
     
     Parameters
@@ -533,7 +533,7 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
     gx_component_df['age'] = sample_component_ages(gx_component, n_samp=n_comp)
 
     # filter based on GW evolution up to the present day
-    gx_component_df = filter_LISA_sources(gx_component_df)
+    gx_component_df = filter_possible_LISA_sources(gx_component_df)
 
     # draw metallicities for the component
     gx_component_df['FeH'] = draw_metallicities(gx_component, n_samp=len(gx_component_df))
