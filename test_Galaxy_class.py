@@ -32,11 +32,11 @@ ModelParams = { #Main options
                'UseOneBinOnly': False, #If False - use full model; if True - use just one bin, for visualizations
                'OneBinToUse': 10, #Number of the bin, if only one bin in used
                'NPoints': 1e5, # Number of stars to sample if we just sample present-day stars
-               'datPath': os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' # replace with path to your data
+               'datPath': os.environ['UCB_GOOGLE_DRIVE_DIR'] # replace with path to your data
     }
 
-T0_dat_path = ModelParams['datPath'] + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
-write_path = ModelParams['datPath'] + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
+write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
 
 
 # Import the Galaxy class from galaxy
