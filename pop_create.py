@@ -808,7 +808,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
             gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
 
             # get the statistical data of number of DWDs in a finer time sampling grid
-            stats_tot = get_component_stats(gx_component, gx, ModelParams)
+            stats_tot = get_component_stats(gx_component, gx_component_df, ModelParams)
 
             # Calculate the strain amplitude and SNR without confusion for each DWD in the component
             gx_component_df = get_legwork_calculations(gx_component_df)
@@ -817,7 +817,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
             gx_component_df['component'] = gx_component
             
             # write the galaxy component DataFrame to a file
-            _ = write_galaxy(gx_component_df, write_path, gx_component, stats, write_h5=write_h5, verbose=verbose)
+            _ = write_galaxy(gx_component_df, write_path, gx_component, stats_tot, write_h5=write_h5, verbose=verbose)
             
 
     return None
