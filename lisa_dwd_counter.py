@@ -34,8 +34,23 @@ def dwd_count_single_code(code_name, var_type, var_name, rclone_flag=True):
     
     if var_type == 'icv' or var_type == 'initial_condition_variations':
         var_type_string = 'initial_condition_variations/'
+        var_string = var_name
     elif var_type == 'mtv' or var_type == 'mass_transfer_variations':
         var_type_string = 'mass_transfer variations/'
+        #select appropriate subfolder in mass_transfer_variations
+        if var_name == 'fiducial':
+            var_string = var_name
+        elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
+            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05':
+                var_string = 'common_envelope/' + var_name
+        elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
+            or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
+                var_string = 'stability_of_mass_transfer/' + var_name
+        elif var_name == 'accretion_0' or var_name == 'accretion_1' or \
+            var_name == 'accretion_05':
+                var_string = 'stable_accretion_efficiency/' + var_name
+        else:
+            raise ValueError('Invalid mass transfer variation specified.')
     else:
         raise ValueError('Please specify either initial condition or mass ' +
                         'transfer variations.')
@@ -47,7 +62,7 @@ def dwd_count_single_code(code_name, var_type, var_name, rclone_flag=True):
     else:
         initial_string = 'data_products/simulated_galaxy_populations/' + \
             'monte_carlo_comparisons/' + var_type_string
-    lisa_dwd_filepath = initial_string + var_name + '/' + code_name + \
+    lisa_dwd_filepath = initial_string + var_string + '/' + code_name + \
         '_Galaxy_LISA_DWDs.csv'
     
     lisa_dwd_array = pd.read_csv(lisa_dwd_filepath)
@@ -167,8 +182,23 @@ def all_dwd_single_code(code_name, var_type, var_name, rclone_flag=True):
     
     if var_type == 'icv' or var_type == 'initial_condition_variations':
         var_type_string = 'initial_condition_variations/'
+        var_string = var_name
     elif var_type == 'mtv' or var_type == 'mass_transfer_variations':
         var_type_string = 'mass_transfer variations/'
+        #select appropriate subfolder in mass_transfer_variations
+        if var_name == 'fiducial':
+            var_string = var_name
+        elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
+            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05':
+                var_string = 'common_envelope/' + var_name
+        elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
+            or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
+                var_string = 'stability_of_mass_transfer/' + var_name
+        elif var_name == 'accretion_0' or var_name == 'accretion_1' or \
+            var_name == 'accretion_05':
+                var_string = 'stable_accretion_efficiency/' + var_name
+        else:
+            raise ValueError('Invalid mass transfer variation specified.')
     else:
         raise ValueError('Please specify either initial condition or mass ' +
                         'transfer variations.')
@@ -180,7 +210,7 @@ def all_dwd_single_code(code_name, var_type, var_name, rclone_flag=True):
     else:
         initial_string = 'data_products/simulated_galaxy_populations/' + \
             'monte_carlo_comparisons/' + var_type_string
-    bin_data_filepath = initial_string + var_name + '/' + code_name + \
+    bin_data_filepath = initial_string + var_string + '/' + code_name + \
         '_Galaxy_LISA_Candidates_Bin_Data.csv'
     
     bin_data_array = pd.read_csv(bin_data_filepath)
