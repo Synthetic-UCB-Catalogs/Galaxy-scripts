@@ -36,7 +36,7 @@ def dwd_count_single_code(code_name, var_type, var_name, rclone_flag=True):
         var_type_string = 'initial_condition_variations/'
         var_string = var_name
     elif var_type == 'mtv' or var_type == 'mass_transfer_variations':
-        var_type_string = 'mass_transfer variations/'
+        var_type_string = 'mass_transfer_variations/'
         #select appropriate subfolder in mass_transfer_variations
         if var_name == 'fiducial':
             var_string = var_name
@@ -184,7 +184,7 @@ def all_dwd_single_code(code_name, var_type, var_name, rclone_flag=True):
         var_type_string = 'initial_condition_variations/'
         var_string = var_name
     elif var_type == 'mtv' or var_type == 'mass_transfer_variations':
-        var_type_string = 'mass_transfer variations/'
+        var_type_string = 'mass_transfer_variations/'
         #select appropriate subfolder in mass_transfer_variations
         if var_name == 'fiducial':
             var_string = var_name
