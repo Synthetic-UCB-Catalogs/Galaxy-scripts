@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import sys
-import pyvista as pv
+#import pyvista as pv
 import os
 import legwork.source as source
 import legwork.visualisation as vis
@@ -36,20 +36,22 @@ AnimationStepQ = False
 #SimType can be MS, DWDCand, DWDLISA
 SimTypesUse   = ['MS', 'DWDCand', 'DWDLISA']
 #Plot group name
-PlotSetName   = '20241107ICs'
+PlotSetName   = 'IC_Variations'
 
-#RunWave         = 'fiducial'
+RunWave         = 'fiducial'
 #RunWave         = 'porb_log_uniform'
-RunWave         = 'uniform_ecc'
+#RunWave         = 'uniform_ecc'
 #RunWave         = 'qmin_01'
 #Code            = 'COSMIC'
 #Code            = 'ComBinE'
-Code            = 'COMPAS'
+#Code            = 'COMPAS'
+#Code            = 'COSMIC'
+Code             = 'SEVN'
     
-OutputSubfolder = 'ICVariations'
+OutputSubfolder = PlotSetName
 CurrOutDir      = './ProcessedSimulations/' + OutputSubfolder + '/' + RunWave 
-PathSet         = {'MS': './FullGalaxy.csv', 'DWDCand': CurrOutDir + '/FullGalaxyDWD.csv', 'DWDLISA': CurrOutDir + '/FullGalaxyDWDLISAOnly.csv'}
-GalStatsPath    = CurrOutDir + '/GalaxyLISACandidateStats.csv'
+PathSet         = {'MS': './FieldMSTests/FullGalaxyMSs.csv', 'DWDCand': CurrOutDir + '/' + Code + '_Galaxy_AllDWDs.csv', 'DWDLISA': CurrOutDir + '/' + Code + '_Galaxy_LISA_DWDs.csv'}
+GalStatsPath    = CurrOutDir + '/' + Code + '_Galaxy_LISA_Candidates_Bin_Data.csv'
 
 FileStringSet = {'MS': 'MS', 'DWDCand': 'DWD', 'DWDLISA': 'DWDLISA'}
 SubfolderSet  = {'MS': 'MS', 'DWDCand': 'DWD', 'DWDLISA': 'DWDLISA'}
