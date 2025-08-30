@@ -15,4 +15,5 @@
 # 5) Unignore some directories
 #!Data
 #!WDData
+#!Foregrounds
 .DS_Store

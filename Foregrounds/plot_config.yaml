@@ -1,0 +1,5 @@
+# --- Global plotting settings ---
+plotting_settings:
+  medium_size: 28
+  bigger_size: 32
+  dpi: 100
