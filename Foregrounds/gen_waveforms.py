@@ -30,7 +30,7 @@ from gbgpu.utils.constants import *
 from lisatools.sensitivity import AET1SensitivityMatrix
 import lisatools.detector as lisa_models
 
-from helpers import Constants, get_file_hash
+from helpers import Constants, get_file_hash, load_and_prepare_config
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -38,8 +38,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     code = args.code
 
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_and_prepare_config('config.yaml')
 
     wavepath = os.path.join(config['waveformpath'], config['datapath'])
     os.makedirs(wavepath, exist_ok=True)

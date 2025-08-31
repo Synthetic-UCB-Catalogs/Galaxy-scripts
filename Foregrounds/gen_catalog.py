@@ -21,10 +21,9 @@ from astropy.coordinates import SkyCoord, Galactocentric, BarycentricMeanEclipti
 from astropy import units
 
 import argparse
-from helpers import Constants, explore_csv
+from helpers import Constants, explore_csv, load_and_prepare_config
 
-with open('config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
+config = load_and_prepare_config('config.yaml')
 
 seed = None
 if config['seed'] is not None:

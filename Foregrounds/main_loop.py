@@ -31,7 +31,7 @@ from gbgpu.utils.constants import *
 from lisatools.sensitivity import AET1SensitivityMatrix
 import lisatools.detector as lisa_models
 
-from helpers import Constants, apply_global_plot_settings
+from helpers import Constants, apply_global_plot_settings, load_and_prepare_config
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -39,10 +39,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     code = args.code
 
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_and_prepare_config('config.yaml')
     with open('plot_config.yaml', 'r') as f:
         plot_settings = yaml.safe_load(f)
+        
 
     apply_global_plot_settings(plot_settings)
 

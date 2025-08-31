@@ -2,7 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import os
+import yaml
 import hashlib
+from pathlib import Path
 
 class Constants:
     G = 6.67e-11  # SI
@@ -72,3 +74,42 @@ def apply_global_plot_settings(plot_settings):
     plt.rc('ytick', labelsize=BIGGER_SIZE)
     plt.rc('legend', fontsize=MEDIUM_SIZE)
     plt.rc('figure', titlesize=BIGGER_SIZE)
+
+
+def load_and_prepare_config(config_path):
+    """
+    Loads a YAML config, expands environment variables, and resolves relative paths.
+
+    Args:
+        config_path (str): Path to the YAML configuration file.
+
+    Returns:
+        dict: The fully processed configuration dictionary.
+    """
+    config_path = Path(config_path).resolve()
+    project_root = config_path.parent
+
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    # This recursive function walks through the config to process all strings
+    def process_paths_recursive(data):
+        if isinstance(data, dict):
+            for key, value in data.items():
+                data[key] = process_paths_recursive(value)
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                data[i] = process_paths_recursive(item)
+        elif isinstance(data, str):
+            # Step 1: Expand any environment variables (e.g., ${EXPERIMENT_ROOT})
+            expanded_str = os.path.expandvars(data)
+            
+            # Step 2: If the path is still relative (starts with './'),
+            # make it absolute with respect to the project root.
+            if expanded_str.startswith('./'):
+                return str(project_root / expanded_str)
+            return expanded_str
+            
+        return data
+
+    return process_paths_recursive(config)
