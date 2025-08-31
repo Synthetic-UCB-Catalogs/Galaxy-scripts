@@ -88,7 +88,8 @@ if __name__ == "__main__":
 
 
     # One can split the cat in several pieces to parallelize this call
-    GB = GBGPU(use_gpu=config['use_gpu'])
+    orbits = lisa_models.EqualArmlengthOrbits(use_gpu=config['use_gpu'])
+    GB = GBGPU(orbits=orbits, use_gpu=config['use_gpu'])
     tdi, cat = gwg.generate_data(cat, lisa_noise, GB, T=duration, dt=dt, AET=True)
 
     # Save the data

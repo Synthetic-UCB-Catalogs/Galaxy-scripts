@@ -81,7 +81,8 @@ if __name__ == "__main__":
 
 
     # One can split the cat in several pieces to parallelize this call
-    GB = GBGPU(use_gpu=config['use_gpu'])
+    orbits = lisa_models.EqualArmlengthOrbits(use_gpu=config['use_gpu'])
+    GB = GBGPU(orbits=orbits, use_gpu=config['use_gpu'])
     AET, S1, S1r, cat = gwg.icloop(
         loaded_tdi, GB, loaded_cat, lisa_noise, 2000, **config['icloop_kwargs']
     )

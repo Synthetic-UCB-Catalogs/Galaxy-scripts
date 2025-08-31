@@ -7,9 +7,9 @@ outputpath: "${EXPERIMENT_ROOT}/output"
 waveformpath: "${EXPERIMENT_ROOT}/waveforms"
 datapath: "monte_carlo_comparisons_lightweight_500K_DWDs/initial_condition_variations/fiducial/"
 
-duration: 2       # LISA observation time [years]
-dt: 15            # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
-use_gpu: false
+duration: 4       # LISA observation time [years]
+dt: 10            # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
+use_gpu: true
 icloop_kwargs:    # kwargs for gwg main loop
   maxiter: 10
   snr_thresh2: 49 # note that this is SNR^2
