@@ -1,5 +1,6 @@
-import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 import os
 import yaml
@@ -113,3 +114,16 @@ def load_and_prepare_config(config_path):
         return data
 
     return process_paths_recursive(config)
+
+    
+def format_bytes(size_bytes):
+    """Converts a size in bytes to a human-readable string."""
+    if size_bytes == 0:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB")
+    i = int(np.floor(np.log(size_bytes) / np.log(1024)))
+    p = np.power(1024, i)
+    s = round(size_bytes / p, 2)
+    return f"{s} {size_name[i]}"
+
+  
