@@ -87,7 +87,7 @@ def process_chunk(task_info):
         dt = float(config['dt'])
 
         # --- Perform the core computation ---
-        tdi, cat_out = gwg.generate_data(catalog_chunk, lisa_noise, GB, T=duration, dt=dt, AET=True)
+        tdi, cat_out = gwg.generate_data(catalog_chunk, lisa_noise, GB, T=duration, dt=dt, AET=True,batch_size=10000,gbgpu_available=True)
 
         # --- Save the output for this chunk ---
         wavepath = os.path.join(config['waveformpath'], config['datapath'])
@@ -109,6 +109,7 @@ def process_chunk(task_info):
 
 
 if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True)
     parser = argparse.ArgumentParser()
     parser.add_argument('--code', type=str, required=True, help='Name of the simulation code to use.')
     args = parser.parse_args()
