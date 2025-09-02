@@ -223,7 +223,7 @@ if __name__ == "__main__":
         tasks = [(i, chunks[i], config, lisa_noise, i % num_gpus) for i in range(num_chunks)]
         
         # Create a pool of worker processes, one for each GPU
-        with mp.Pool(processes=num_gpus) as pool:
+        with mp.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
             results = pool.map(process_chunk, tasks)
 
     else:

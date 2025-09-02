@@ -5,7 +5,7 @@ basepath: "${EXPERIMENT_ROOT}/data"
 inputpath: "${EXPERIMENT_ROOT}/input"
 outputpath: "${EXPERIMENT_ROOT}/output"
 waveformpath: "${EXPERIMENT_ROOT}/waveforms"
-datapath: "monte_carlo_comparisons/initial_condition_variations/fiducial/"
+datapath: "monte_carlo_comparisons/initial_condition_variations/m2_min_05/"
 
 num_chunks: 8     # split the hdf5 catalog in a number of chunks
 
