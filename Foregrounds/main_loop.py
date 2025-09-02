@@ -72,7 +72,8 @@ def process_icloop_chunk(task_info):
         icloop_kwargs = config['icloop_kwargs'].copy()
         icloop_kwargs['snr_thresh2'] = float(icloop_kwargs.pop('snr_cutoff', 7))**2
         icloop_kwargs['deltaf'] = int(icloop_kwargs.pop('window_size', 1000))
-        
+        icloop_kwargs['use_gbgpu'] = use_gpu
+
         # --- Perform the core computation ---
         AET, S1, S1r, cat = gwg.icloop(loaded_tdi, GB, loaded_cat, lisa_noise, **icloop_kwargs)
 
@@ -154,13 +155,15 @@ if __name__ == "__main__":
         # Assign a GPU to each task, cycling through available GPUs
         tasks = [(i, input_chunk_files[i], config, lisa_noise, i % num_gpus) for i in range(num_chunks)]
         
-        with mp.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
-            intermediate_files = pool.map(process_icloop_chunk, tasks)
+       # with mp.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
+       #     intermediate_files = pool.map(process_icloop_chunk, tasks)
+        print("INFO: Starting sequential processing on GPU...")
+        for task in tasks:
+            intermediate_files.append(process_icloop_chunk(task))
     else:
         print("INFO: Starting sequential processing on CPU...")
         for task in tasks:
             intermediate_files.append(process_icloop_chunk(task))
-
     end_time = time.time()
     print(f"\nINFO: All chunks processed in {end_time - start_time:.2f} seconds.")
 

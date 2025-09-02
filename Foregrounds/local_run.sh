@@ -26,8 +26,8 @@ RUN_CODE=$1
 SCRIPT_TO_RUN=$2
 
 # --- 2. SETUP: Define the Environment and Prepare the Output Directory ---
-#export EXPERIMENT_ROOT="${SCRATCH}/projects/ucb-catalogs/confusion_test"
-export EXPERIMENT_ROOT="./"
+export EXPERIMENT_ROOT="${SCRATCH}/projects/ucb-catalogs/confusion_test"
+#export EXPERIMENT_ROOT="./"
 
 echo "========================================================="
 echo "Starting local run: ${RUN_CODE}"
