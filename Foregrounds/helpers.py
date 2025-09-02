@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import yaml
 import hashlib
+import shutil
 from pathlib import Path
 
 class Constants:
@@ -62,10 +63,10 @@ def apply_global_plot_settings(plot_settings):
     BIGGER_SIZE = plot_settings.get('bigger_size', 18)
 
     plt.rcdefaults()
-    try:
+    if shutil.which('latex') is not None:
         plt.rc('text', usetex=True)
-    except RuntimeError:
-        print("Warning: LaTeX not found. Plots will be generated without it.")
+    else:
+        print("WARNING: 'latex' executable not found. Using default rendering.")
         plt.rc('text', usetex=False)
 
     plt.rc('font', size=BIGGER_SIZE)

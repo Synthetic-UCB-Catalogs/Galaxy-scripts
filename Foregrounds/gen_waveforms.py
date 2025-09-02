@@ -87,7 +87,11 @@ def process_chunk(task_info):
         dt = float(config['dt'])
 
         # --- Perform the core computation ---
-        tdi, cat_out = gwg.generate_data(catalog_chunk, lisa_noise, GB, T=duration, dt=dt, AET=True,batch_size=10000,gbgpu_available=True)
+        tdi, cat_out = gwg.generate_data(
+            catalog_chunk, lisa_noise, GB, 
+            T=duration, dt=dt, AET=True,
+            batch_size=10000,gbgpu_available=use_gpu
+        )
 
         # --- Save the output for this chunk ---
         wavepath = os.path.join(config['waveformpath'], config['datapath'])
@@ -166,7 +170,12 @@ if __name__ == "__main__":
     F = df * int((ndata+1)/2)
     fvec = np.arange(0, F, df)
 
-    sens_kwargs = dict(model=lisa_models.scirdv1, return_type='PSD')
+    return_type = 'PSD'
+    sens_kwargs = dict(
+        stochastic_params=None,
+        model=lisa_models.scirdv1,
+        return_type=return_type
+    )
     sens_mat = AET1SensitivityMatrix(fvec[1:], **sens_kwargs)
     lisa_noise = {'f': fvec[1:], 'A': sens_mat[0], 'E': sens_mat[1], 'T': sens_mat[2]}
 
