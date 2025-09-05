@@ -73,6 +73,8 @@ def process_icloop_chunk(task_info):
         icloop_kwargs['snr_thresh2'] = float(icloop_kwargs.pop('snr_cutoff', 7))**2
         icloop_kwargs['deltaf'] = int(icloop_kwargs.pop('window_size', 1000))
         icloop_kwargs['use_gbgpu'] = use_gpu
+        if icloop_kwargs.get('doplot', False):
+            icloop_kwargs['tag'] = f"chunk={chunk_idx}_"
 
         # --- Perform the core computation ---
         AET, S1, S1r, cat = gwg.icloop(loaded_tdi, GB, loaded_cat, lisa_noise, **icloop_kwargs)
@@ -84,6 +86,21 @@ def process_icloop_chunk(task_info):
         gwg.utils.to_h5(intermediate_filename, cat=cat, tdi=AET, S=S1)
         
         print(f"INFO: Chunk {chunk_idx + 1} successfully saved to {intermediate_filename}")
+
+        if icloop_kwargs.get('doplot', False):
+            # The plot files are created in the current working directory.
+            # We need to find them and move them to the designated outpath.
+            plot_pattern = f"{icloop_kwargs['tag']}iter*.pdf"
+            found_plots = glob.glob(plot_pattern)
+            
+            if found_plots:
+                print(f"INFO: Moving {len(found_plots)} plot file(s) for chunk {chunk_idx + 1}...")
+                for pdf_file in found_plots:
+                    # The destination is the main output path + the base filename
+                    destination_file = os.path.join(outpath, os.path.basename(pdf_file))
+                    # Use shutil.move for a robust move operation, overwriting if necessary
+                    shutil.move(pdf_file, destination_file)
+
         return intermediate_filename
 
     except Exception as e:
@@ -147,7 +164,7 @@ if __name__ == "__main__":
             import cupy as cp
             num_gpus = cp.cuda.runtime.getDeviceCount()
             if num_gpus == 0: raise RuntimeError("No GPUs found, but use_gpu is True.")
-            print(f"INFO: Found {num_gpus} GPUs. Starting parallel processing...")
+            print(f"INFO: Found {num_gpus} GPUs, but only one at a time will be used.")
         except (ModuleNotFoundError, RuntimeError) as e:
             print(f"FATAL: Could not get GPU count. Exiting. Error: {e}")
             sys.exit(1)
@@ -155,8 +172,6 @@ if __name__ == "__main__":
         # Assign a GPU to each task, cycling through available GPUs
         tasks = [(i, input_chunk_files[i], config, lisa_noise, i % num_gpus) for i in range(num_chunks)]
         
-       # with mp.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
-       #     intermediate_files = pool.map(process_icloop_chunk, tasks)
         print("INFO: Starting sequential processing on GPU...")
         for task in tasks:
             intermediate_files.append(process_icloop_chunk(task))
@@ -174,7 +189,6 @@ if __name__ == "__main__":
 
     print("\nINFO: Starting finalization: merging all chunk data...")
 
-    # --- THIS IS THE CRITICAL FIX (PART 1) ---
     # Load the first chunk to initialize data structures AND to capture the
     # "ground truth" frequency axes. The icloop may alter the frequency grid,
     # so we cannot rely on the initial lisa_noise frequencies.
@@ -214,7 +228,6 @@ if __name__ == "__main__":
             final_tdi[k] = final_tdi[k] + tdi_chunk[k]
             final_S[k] = final_S[k] + (S_chunk[k] - instr_noise[k])
 
-    # --- THIS IS THE CRITICAL FIX (PART 2) ---
     # After summation, the objects are plain xarrays. We must re-wrap them
     # into FrequencySeries objects using the frequency axes we captured earlier.
     print("INFO: Restoring FrequencySeries objects with correct frequency axes...")
@@ -222,7 +235,6 @@ if __name__ == "__main__":
         final_tdi[k] = gwg.utils.FrequencySeries(final_tdi[k].data, fs=tdi_freq_axis)
         final_S[k] = final_S[k] + instr_noise[k]
         final_S[k] = gwg.utils.FrequencySeries(final_S[k].data, fs=S_freq_axis)
-    # --- END OF FIX (PART 2) ---
     
     # Combine the catalogs
     final_cat = np.hstack(final_cat_list)
@@ -261,11 +273,15 @@ if __name__ == "__main__":
     f = np.absolute(final_tdi["A"].f.to_numpy())
     df = f[1] - f[0]
 
-    #ax.loglog(f, 2*df*np.absolute(A)**2, label='TDI A', color='green', lw=4, linestyle='--')
-    ax.loglog(f, 2*df*np.absolute(E)**2, label='TDI E', color='blue', lw=1, linestyle='--')
-    ax.loglog(f, final_S['E'].data, label='smoothed E', color='blue', lw=2, linestyle='solid')
-    #ax.loglog(f, 2*df*np.absolute(T)**2, label='TDI T', color='red', lw=4, linestyle='--')
-    ax.loglog(lisa_noise["f"], lisa_noise["E"], 'k', lw=2, label='E noise', linestyle='dashed')
+    ax.loglog(f, 2*df*np.absolute(A)**2, label='output data', color='blue', lw=1, linestyle='--')
+    ax.loglog(
+            f, np.absolute(final_S['A'].data), 
+            label='final smoothed', color='blue', lw=2, linestyle='solid'
+        )
+    ax.loglog(
+            instr_noise["f"], np.absolute(instr_noise["A"]),
+            'k', lw=2, label='noise', linestyle='dashed'
+        )
     #ax.loglog(lisa_noise["f"], lisa_noise["T"], 'dimgrey', lw=1, label='T noise')
     ax.legend(loc='upper left')
     ax.set_xlim(1e-4, 1e-2)
@@ -284,101 +300,3 @@ if __name__ == "__main__":
 
     print("\nSUCCESS: Main loop and finalization complete.")
 
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--code', type=str, required=True, help='Name of the code to use.')
-#     args = parser.parse_args()
-#     code = args.code
-
-#     config = load_and_prepare_config('config.yaml')
-#     with open('plot_config.yaml', 'r') as f:
-#         plot_settings = yaml.safe_load(f)
-        
-
-#     apply_global_plot_settings(plot_settings)
-
-#     wavepath = os.path.join(config['waveformpath'], config['datapath'])
-#     wavename = os.path.join(
-#         wavepath, f'{code}_waveform_cat.h5'
-#     )
-#     outpath = os.path.join(config['outputpath'], config['datapath'])
-#     os.makedirs(outpath, exist_ok=True)
-
-#     loaded_cat = gwg.utils.load_h5(wavename, key="cat")
-#     loaded_tdi = gwg.utils.load_h5(wavename, key="tdi")
-
-#     duration = Constants.yr * float(config['duration'])
-#     dt = float(config['dt'])
-#     df = 1/duration  # The frequency resolution
-
-#     # Define the frequency vector depending on the duration (not really needed here,
-#     # but necessary for the definition for the LISA noise function)
-#     ndata = int(duration/dt)
-#     F     = df*int((ndata+1)/2)
-#     fvec  = np.arange(0, F, df) # make the positive frequency vector
-
-#     return_type = 'PSD'
-#     sens_kwargs = dict(
-#         stochastic_params=None,
-#         model=lisa_models.scirdv1,
-#         return_type=return_type
-#     )
-#     sens_mat = AET1SensitivityMatrix(fvec[1:], **sens_kwargs)
-#     lisa_noise = {}
-#     labels = ['A', 'E', 'T']
-#     lisa_noise['f'] = fvec[1:]
-#     for k,label in enumerate(labels):
-#         lisa_noise[label] = sens_mat[k]
-
-#     icloop_kwargs = config['icloop_kwargs'].copy()
-#     icloop_kwargs['snr_thresh2'] = float(icloop_kwargs.pop('snr_cutoff', 7))**2
-#     icloop_kwargs['deltaf'] = int(icloop_kwargs.pop('window_size', 1000))
-
-#     # One can split the cat in several pieces to parallelize this call
-#     orbits = lisa_models.EqualArmlengthOrbits(use_gpu=config['use_gpu'])
-#     GB = GBGPU(orbits=orbits, use_gpu=config['use_gpu'])
-#     AET, S1, S1r, cat = gwg.icloop(
-#         loaded_tdi, GB, loaded_cat, lisa_noise, **icloop_kwargs
-#     )
-
-#     gwg.utils.to_h5(
-#         os.path.join(outpath, f'{code}_output_cat.h5'), 
-#         cat=cat, tdi=AET, S=S1
-#     )
-
-#     # Move any generated PDF files to the output directory, overwriting if they exist
-#     # for pdf_file in glob.glob('iter*.pdf'):
-#     #     destination_file = os.path.join(outpath, os.path.basename(pdf_file))
-#     #     shutil.move(pdf_file, destination_file)
-
-#     fig,ax = plt.subplots(ncols=1, nrows=1, figsize=(10,8))
-
-#     A = gwg.utils.FrequencySeries(S1['A'], df=df, kmin=0)
-#     E = gwg.utils.FrequencySeries(S1['E'], df=df, kmin=0)
-#     T = gwg.utils.FrequencySeries(S1['T'], df=df, kmin=0)
-#     f = A.f # Get the frequency array
-
-#     ax.loglog(f, np.absolute(A), label='TDI A', color='green', lw=4, linestyle='--')
-#     ax.loglog(f, np.absolute(E), label='TDI E', color='blue', lw=4, linestyle='--')
-#     ax.loglog(f, np.absolute(T), label='TDI T', color='red', lw=4, linestyle='--')
-#     ax.loglog(lisa_noise["f"], lisa_noise["A"], 'k', lw=1, label='A, E noise')
-#     ax.loglog(lisa_noise["f"], lisa_noise["T"], 'dimgrey', lw=1, label='T noise')
-#     ax.legend(loc='upper left')
-#     ax.set_xlim(1e-4, 1e-1)
-#     #ax.set_ylim(1e-47, 1e-36)
-#     ax.set_ylabel(r'[$1/\mathrm{Hz}$]')
-#     ax.set_xlabel(r'Frequency [$\mathrm{Hz}$]')
-
-#     ax.grid(True,linestyle=':',linewidth='1.')
-#     ax.xaxis.set_ticks_position('both')
-#     ax.yaxis.set_ticks_position('both')
-#     ax.tick_params('both',length=3,width=0.5,which='both',direction = 'in',pad=10)
-
-#     fig.tight_layout()
-#     fig.savefig(
-#         os.path.join(outpath, f'{code}_tdi_noise.png'), 
-#         dpi=plot_settings['dpi']
-#     )
-
-
-    

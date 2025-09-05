@@ -7,18 +7,18 @@ outputpath: "${EXPERIMENT_ROOT}/output"
 waveformpath: "${EXPERIMENT_ROOT}/waveforms"
 datapath: "monte_carlo_comparisons/initial_condition_variations/fiducial/"
 
-num_chunks: 8     # split the hdf5 catalog in a number of chunks
+num_chunks: 4     # split the hdf5 catalog in a number of chunks
 
 duration: 4       # LISA observation time [years]
 dt: 1             # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
 use_gpu: true
 icloop_kwargs:        # kwargs for gwg main loop
-  snr_cutoff: 7       # changed notation for convenience; this is converted to kwarg "snr_thresh2=snr_off**2"
-  methoduse: "mean" # smoothing method: running median or mean
-  window_size: 2000   # window size for the smoothing; changed notation for convenience; the kwarg's name "Df"
+  snr_cutoff: 7       # changed notation for convenience; this is converted to kwarg "snr_thresh2=snr_cutoff**2"
+  methoduse: "mean"   # smoothing method: running median or mean
+  window_size: 2000   # window size for the smoothing; changed notation for convenience; the kwarg's name "deltaf"
   maxiter: 10         # maximum number of iterations (stopping condition)
   tol: 0.05           # relative change (stopping condition)
-  doplot: false       # plots from intermediate iterations are also saved to the output directory
-  oversample: 1
+  doplot: true        # plots from intermediate iterations are also saved to the output directory
+  oversample: 2
 
 
