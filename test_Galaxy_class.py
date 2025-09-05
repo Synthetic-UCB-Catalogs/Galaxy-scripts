@@ -9,6 +9,7 @@ ModelParams = { #Main options
                'ImportSimulation': True, #If true, construct the present-day DWD populaiton (as opposed to the MS population)               
                #Simulation options
                'RunWave': 'initial_condition_variations',
+               #'RunWave': 'mass_transfer_variations',
                'RunSubType': 'fiducial',
                #'RunSubType': 'thermal_ecc',
                #'RunSubType': 'uniform_ecc',
@@ -36,8 +37,28 @@ ModelParams = { #Main options
                'datPath': os.environ['UCB_GOOGLE_DRIVE_DIR'] # replace with path to your data
     }
 
-T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
-write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+if ModelParams['RunWave'] == 'initial_condition_variations':
+    T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
+    write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+elif ModelParams['RunWave'] == 'mass_transfer_variations':
+    var_name = ModelParams['RunSubType']
+    if var_name == 'fiducial':
+        var_string = var_name
+    elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
+        var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05':
+            var_string = 'common_envelope/' + var_name
+    elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
+        or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
+            var_string = 'stability_of_mass_transfer/' + var_name
+    elif var_name == 'accretion_0' or var_name == 'accretion_1' or \
+        var_name == 'accretion_05':
+            var_string = 'stable_accretion_efficiency/' + var_name
+    else:
+        raise ValueError('Invalid mass transfer variation specified in RunSubType.')
+    T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
+    write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+else:
+    raise ValueError('Invalid RunWave specified.')
 
 
 # Import the Galaxy class from galaxy
