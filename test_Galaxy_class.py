@@ -21,9 +21,9 @@ ModelParams = { #Main options
                #'Code': 'COSMIC',
                #'Code': 'METISSE',
                #'Code': 'SeBa',     
-               #'Code': 'SEVN',
+               'Code': 'SEVN',
                #'Code': 'ComBinE',
-               'Code': 'COMPAS',
+               #'Code': 'COMPAS',
                #Simulation parameters
                'ACutRSunPre': 6., #Initial cut for all DWD binaries
                'UseRepresentingWDs': False, #If False - each binary in the Galaxy is drawn as 1 to 1; if True - all the Galactic DWDs are represented by a smaller number, N, binaries

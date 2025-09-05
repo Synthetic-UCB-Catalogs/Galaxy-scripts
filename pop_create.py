@@ -75,7 +75,7 @@ def get_T0_DWDs(ModelParams, T0_dat_path, verbose=False):
     # folder in the Google Drive download; the header of the T0
     # data file is saved in _ that is returned by the load_T0_data
     # function
-    T0_data, _ = load_T0_data(T0_dat_path)
+    T0_data, _ = load_T0_data(T0_dat_path, code=ModelParams['Code'], metallicity=0.02)
     
     if verbose:
         print(f"Loaded T0 data with {len(T0_data)} entries for the {ModelParams['Code']} {ModelParams['RunWave']} {ModelParams['RunSubType']} run.")
