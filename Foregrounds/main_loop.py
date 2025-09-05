@@ -74,7 +74,7 @@ def process_icloop_chunk(task_info):
         icloop_kwargs['deltaf'] = int(icloop_kwargs.pop('window_size', 1000))
         icloop_kwargs['use_gbgpu'] = use_gpu
         if icloop_kwargs.get('doplot', False):
-            icloop_kwargs['tag'] = f"chunk={chunk_idx}_"
+            icloop_kwargs['tag'] = f"{config['code']}_chunk={chunk_idx}_"
 
         # --- Perform the core computation ---
         AET, S1, S1r, cat = gwg.icloop(loaded_tdi, GB, loaded_cat, lisa_noise, **icloop_kwargs)
@@ -141,6 +141,8 @@ if __name__ == "__main__":
 
     # Clean up intermediate files from any previous failed runs
     for old_file in glob.glob(os.path.join(outpath, f'{code}_output_chunk_*.h5')):
+        os.remove(old_file)
+    for old_file in glob.glob(os.path.join(outpath, f'{code}*iter*.pdf')):
         os.remove(old_file)
 
     # --- Prepare Shared Data ---
@@ -273,7 +275,7 @@ if __name__ == "__main__":
     f = np.absolute(final_tdi["A"].f.to_numpy())
     df = f[1] - f[0]
 
-    ax.loglog(f, 2*df*np.absolute(A)**2, label='output data', color='blue', lw=1, linestyle='--')
+    #ax.loglog(f, 2*df*np.absolute(A)**2, label='output data', color='blue', lw=1, linestyle='--')
     ax.loglog(
             f, np.absolute(final_S['A'].data), 
             label='final smoothed', color='blue', lw=2, linestyle='solid'
@@ -285,7 +287,7 @@ if __name__ == "__main__":
     #ax.loglog(lisa_noise["f"], lisa_noise["T"], 'dimgrey', lw=1, label='T noise')
     ax.legend(loc='upper left')
     ax.set_xlim(1e-4, 1e-2)
-    ax.set_ylim(1e-43, 1e-39)
+    ax.set_ylim(1e-43, 5e-40)
     ax.set_ylabel(r'[$1/\mathrm{Hz}$]')
     ax.set_xlabel(r'Frequency [$\mathrm{Hz}$]')
     ax.grid(True, linestyle=':', linewidth='1.')
