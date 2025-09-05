@@ -8,21 +8,22 @@ ModelParams = { #Main options
                'RecalculateCDFs': True, #If true, the galaxy distribution CDFs are recalculated (use True when running first time on a new machine)
                'ImportSimulation': True, #If true, construct the present-day DWD populaiton (as opposed to the MS population)               
                #Simulation options
-               'RunWave': 'initial_condition_variations',
-               #'RunWave': 'mass_transfer_variations',
-               'RunSubType': 'fiducial',
+               #'RunWave': 'initial_condition_variations',
+               'RunWave': 'mass_transfer_variations',
+               #'RunSubType': 'fiducial',
                #'RunSubType': 'thermal_ecc',
                #'RunSubType': 'uniform_ecc',
                #'RunSubType': 'm2_min_05',
                #'RunSubType': 'qmin_01',
                #'RunSubType': 'porb_log_uniform',
-               'Code': 'BSE',
+               'RunSubType': 'alpha_lambda_02',
+               #'Code': 'BSE',
                #'Code': 'COSMIC',
                #'Code': 'METISSE',
                #'Code': 'SeBa',     
                #'Code': 'SEVN',
                #'Code': 'ComBinE',
-               #'Code': 'COMPAS',
+               'Code': 'COMPAS',
                #Simulation parameters
                'ACutRSunPre': 6., #Initial cut for all DWD binaries
                'UseRepresentingWDs': False, #If False - each binary in the Galaxy is drawn as 1 to 1; if True - all the Galactic DWDs are represented by a smaller number, N, binaries

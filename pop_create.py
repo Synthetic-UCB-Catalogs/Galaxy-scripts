@@ -287,7 +287,11 @@ def get_N_Gx_sample(T0_DWD_LISA, ModelParams):
     N_DWD_Gx : int
         Number of DWDs in the Galaxy.
     '''
-    mass_norm  = utils.get_mass_norm(IC_model=ModelParams['RunSubType'], binary_fraction=0.5)
+    if ModelParams['RunWave'] == 'initial_condition_variations':
+        mass_norm  = utils.get_mass_norm(IC_model=ModelParams['RunSubType'], binary_fraction=0.5)
+    elif ModelParams['RunWave'] == 'mass_transfer_variations':
+        mass_norm  = utils.get_mass_norm(IC_model='fiducial', binary_fraction=0.5)
+        #use fiducial mass norm for all mass transfer variations
     gx_to_sim_mass = utils.galaxy_params('MGal')/mass_norm
     
     N_DWD_Gx = len(T0_DWD_LISA) * gx_to_sim_mass
