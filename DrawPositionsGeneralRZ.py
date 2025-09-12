@@ -13,6 +13,7 @@ import random
 import h5py
 from scipy.interpolate import RegularGridInterpolator
 from scipy.interpolate import UnivariateSpline
+
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from astropy import constants as const
 from astropy import units as u
@@ -297,6 +298,7 @@ def GetZCDF(r,iBin,Model):
  
     return Res
 
+
 #Part 2 of the draw z CDF function: using the earlier saved version of GetZ
 def GetZ(RFin,iBin,Model):
     
@@ -309,6 +311,25 @@ def GetZ(RFin,iBin,Model):
     SignXi     = np.sign(2*(np.random.rand() - 0.5))
     zFin       = SignXi*np.interp(Xiz,RhozCDF,MidZSet)   
     return zFin
+
+
+def GetZ2(RFin,iBin,n_draw,Model):
+    
+    MidRSet = ModelRCache[iBin]['MidRSet']
+    diffs   = np.abs(MidRSet[None, :] - RFin[:, None])
+    indices = np.argmin(diffs, axis=1).tolist()
+    zFin    = np.zeros(n_draw)
+    # Loop through the indices to get the Z values
+    for ii, ind in enumerate(indices):
+        # CDFs start at 1
+        MidZSet = ZCDFDictSet[iBin+1][ind]['ZSet']
+        RhozCDF = ZCDFDictSet[iBin+1][ind]['RhoCDFSet']
+    
+        Xiz        = np.random.rand()
+        SignXi     = np.sign(2*(np.random.rand() - 0.5))
+        zFin[ii]   = SignXi*np.interp(Xiz,RhozCDF,MidZSet)   
+    return np.array(zFin)
+
     
 #Array of column densities as a function of radius
 def RhoRArray(iBin, Model):
@@ -417,6 +438,188 @@ def fRLDonor(MDonorMSun,MAccretorMSun):
     q = MDonorMSun/MAccretorMSun
     return fRL(q)
 
+
+######################################################
+############ Load the Functions for the Galaxy Sampling Part
+####    
+
+#ModelCache     = PreCompute(ModelParams['OneBinToUse'],'Besancon')
+
+#Routine to load data from an 1-D organised hdf5 file
+def load_Rdicts_from_hdf5(file_path):
+    with h5py.File(file_path, 'r') as hdf5_file:
+        group_names = sorted(hdf5_file.keys(), key=lambda x: int(x.split('_')[1]))
+        for group_name in group_names:
+            group = hdf5_file[group_name]
+            data_dict = {dataset_name: group[dataset_name][:] for dataset_name in group}
+            yield data_dict
+            
+#Routine to load data from a 2D-organised hdf5 file
+def load_RZdicts_from_hdf5(file_path):
+    ZCDFDictSet = {}
+    
+    # Open the file for reading
+    with h5py.File(file_path, 'r') as hdf5_file:
+        # Iterate over each bin group
+        for binID in hdf5_file.keys():
+            IDString  = int(binID[4:])
+            bin_group = hdf5_file[binID]
+            
+            # Initialize a dictionary to hold the data for this bin
+            ZCDFDictSet[IDString] = {}
+            
+            # Each bin group contains 'r_###' subgroups
+            for RID in bin_group.keys():
+                r_group   = bin_group[RID]
+                RIDString = int(RID[2:])
+                
+                # Initialize a dict for the data under this r-group
+                data_dict = {}
+                
+                # Each r group has multiple datasets (originally keys in the data_dict)
+                for dataset_key in r_group.keys():
+                    # Read dataset into memory
+                    data_dict[dataset_key] = r_group[dataset_key][...]  # "..." reads the entire dataset
+                
+                # Store this reconstructed dictionary
+                ZCDFDictSet[IDString][RIDString] = data_dict
+    return ZCDFDictSet
+
+
+#Get the R-CDFs
+if ModelParams['RecalculateCDFs']: 
+    
+    #Recalculate the r CDFs first:
+    ModelRCache     = []
+    for i in range(10):
+        ModelRCache.append(PreCompute(i+1,'Besancon'))
+
+    # Create an HDF5 file
+    with h5py.File('./GalCache/BesanconRData.h5', 'w') as hdf5_file:
+        print('Caching R')
+        for idx, data_dict in enumerate(ModelRCache):
+            # Create a group for each dictionary
+            group = hdf5_file.create_group(f'Rdict_{idx}')
+            # Store each list as a dataset within the group
+            for key, value in data_dict.items():
+                group.create_dataset(key, data=value, compression='gzip')
+                
+    #Recalculate the z-CDFs:
+    
+    #Sampling points dimension 1
+    iBinSampleSet = [i for i in range(10)]
+
+    # Create another HDF5 file
+    with h5py.File('./GalCache/BesanconRZData.h5', 'w') as hdf5_file:
+        for iBin in iBinSampleSet:
+            print('Caching Bin ' + str(iBin+1))
+            # Create a group for each x value
+            x_group = hdf5_file.create_group(f'bin_{iBin+1}')
+            rSet    = ModelRCache[iBin]['MidRSet']
+            rIDs    = list(range(len(rSet)))
+            for rID in rIDs:
+                if (rID % 100) == 0:
+                    print('rID '+ str(rID))
+                # Create a subgroup for each y value within the x group
+                y_group = x_group.create_group(f'r_{rID}')
+                # Compute the function output
+                data_dict = GetZCDF(rSet[rID], iBin + 1,'Besancon')
+                # Store each list in the dictionary as a dataset
+                for key, value in data_dict.items():
+                    y_group.create_dataset(key, data=value, compression='gzip')
+                    
+#Load the previously calculated r CDFs
+ModelRCache     = []
+for Dict in load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5'):
+    # Process each dictionary one at a time
+    ModelRCache.append(Dict)        
+#Load the previously calculated rz CDFs
+ZCDFDictSet = load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
+
+
+#Get the z-CDFs
+
+def DrawRZ(iBin,Model):
+    MidRSet    = ModelRCache[iBin-1]['MidRSet']
+    RCDFSet    = ModelRCache[iBin-1]['RCDFSet']
+    
+    Xir        = np.random.rand()
+    RFin       = np.interp(Xir,RCDFSet,MidRSet)
+    zFin       = GetZ(RFin,iBin-1,Model)
+    
+    return [RFin,zFin]
+
+    # def RCDFInv(Xir,Hr):    
+    #     # Get the parameters for the inverse CDF
+    #     def RCD(R):
+    #         Res = (1-np.exp(-R/Hr))-(R/Hr)*np.exp(-R/Hr)-Xir
+    #         return Res
+        
+    #     Sol  = sp.optimize.root_scalar(RCD,bracket=(0.0001*Hr,20*Hr))
+    #     if Sol.converged:
+    #         R      = Sol.root
+    #     else:
+    #         print('The radial solution did not converge')
+    #         sys.exit()
+    #     return R
+
+#Same function, but drawn n points
+
+def DrawRZ2(iBin,n_draw,Model):
+    
+    MidRSet    = ModelRCache[iBin-1]['MidRSet']
+    RCDFSet    = ModelRCache[iBin-1]['RCDFSet']
+    
+    Xir        = np.random.rand(n_draw)
+    RFin       = np.interp(Xir,RCDFSet,MidRSet)
+    zFin       = GetZ2(RFin,iBin-1,n_draw,Model)
+    
+    return [RFin,zFin]
+
+    
+def DrawStar(Model,iBin):
+    if iBin == -1:
+        BinSet = list(range(1,11))
+        iBin   = np.random.choice(BinSet, p=NormConstantsDict['BinMassFractions'])
+    RZ     = DrawRZ(iBin,Model)
+    Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
+    FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
+    
+    Res = {'RZ': RZ, 'Bin': iBin, 'Age': Age, 'FeH': FeH}
+
+    return Res
+
+#TEST AREA
+
+#TEST 1: Draw 100000 binaries with the usual DrawRZ:
+    
+#print('Start test')    
+#NTest = 100000
+#t0 = time.perf_counter()
+#for i in range(NTest):
+#    NumBin = np.random.randint(1,10)
+#    DrawRZ(NumBin,'Besancon')
+#dt = time.perf_counter() - t0
+#print('End test')
+#print('Test time: ' + str(dt) +'s')
+
+#print('Start test 2')    
+#NTest2 = 100000
+#t02 = time.perf_counter()
+#NumBin2 = np.random.randint(1,10)
+#DrawRZ2(NumBin2,NTest2,'Besancon')
+#dt2 = time.perf_counter() - t02
+#print('End test 2')
+#print('Test time2: ' + str(dt2) +'s')
+
+#sys.exit()
+#END OF TEST AREA
+
+
+
+######################################################
+############ Perform time convolution
+####    
 
 
 if ModelParams['ImportSimulation']:
@@ -567,8 +770,10 @@ if ModelParams['ImportSimulation']:
     PresentDayDWDCandFinSet    = []
     #Do the actual drawing
     for iSubBin in range(SubBinCounter):
+        print(str(iSubBin) + '/' + str(SubBinCounter))
         CurrFind     = NFindSubBins[iSubBin]
         if CurrFind > 0:
+            
             PresentDayDWDCandFin   = SubBinDWDIDDict[iSubBin].sample(n=CurrFind, replace=True)
             SubBinRow              = SubBinDF.iloc[iSubBin]
             SubBinData             = pd.DataFrame([SubBinRow.values] * len(PresentDayDWDCandFin), columns=SubBinRow.index)
@@ -580,6 +785,15 @@ if ModelParams['ImportSimulation']:
             PresentDayDWDCandFin['PSetTodayHours'] = POrbYr(PresentDayDWDCandFin['mass1'],PresentDayDWDCandFin['mass2'], PresentDayDWDCandFin['ATodayRSun'])*YearToSec/(3600.)
             PresentDayDWDCandFin = PresentDayDWDCandFin.loc[PresentDayDWDCandFin['PSetTodayHours'] < 5.6]
             
+            #Add Galactic positions
+            CurrBinID = SubBinProps[iSubBin]['BinID']
+            CurrDraw  = len(PresentDayDWDCandFin.index)
+            CurrRZ    = DrawRZ2(CurrBinID+1, CurrDraw, 'Besancon')
+            
+            PresentDayDWDCandFin['Rkpc'] = CurrRZ[0]
+            PresentDayDWDCandFin['Zkpc'] = CurrRZ[1]
+            
+            #Now store the positions for later use
             PresentDayDWDCandFinSet.append(PresentDayDWDCandFin)
             PresentDayDWDCandFin = []
                     
@@ -592,142 +806,6 @@ else:
     CurrOutDir      = './FieldMSTests/'
     os.makedirs(CurrOutDir,exist_ok=True)
     
-######################################################
-############ Galaxy Sampling Part
-####    
-
-#ModelCache     = PreCompute(ModelParams['OneBinToUse'],'Besancon')
-
-#Routine to load data from an 1-D organised hdf5 file
-def load_Rdicts_from_hdf5(file_path):
-    with h5py.File(file_path, 'r') as hdf5_file:
-        group_names = sorted(hdf5_file.keys(), key=lambda x: int(x.split('_')[1]))
-        for group_name in group_names:
-            group = hdf5_file[group_name]
-            data_dict = {dataset_name: group[dataset_name][:] for dataset_name in group}
-            yield data_dict
-            
-#Routine to load data from a 2D-organised hdf5 file
-def load_RZdicts_from_hdf5(file_path):
-    ZCDFDictSet = {}
-    
-    # Open the file for reading
-    with h5py.File(file_path, 'r') as hdf5_file:
-        # Iterate over each bin group
-        for binID in hdf5_file.keys():
-            IDString  = int(binID[4:])
-            bin_group = hdf5_file[binID]
-            
-            # Initialize a dictionary to hold the data for this bin
-            ZCDFDictSet[IDString] = {}
-            
-            # Each bin group contains 'r_###' subgroups
-            for RID in bin_group.keys():
-                r_group   = bin_group[RID]
-                RIDString = int(RID[2:])
-                
-                # Initialize a dict for the data under this r-group
-                data_dict = {}
-                
-                # Each r group has multiple datasets (originally keys in the data_dict)
-                for dataset_key in r_group.keys():
-                    # Read dataset into memory
-                    data_dict[dataset_key] = r_group[dataset_key][...]  # "..." reads the entire dataset
-                
-                # Store this reconstructed dictionary
-                ZCDFDictSet[IDString][RIDString] = data_dict
-    return ZCDFDictSet
-
-
-#Get the R-CDFs
-if ModelParams['RecalculateCDFs']: 
-    
-    #Recalculate the r CDFs first:
-    ModelRCache     = []
-    for i in range(10):
-        ModelRCache.append(PreCompute(i+1,'Besancon'))
-
-    # Create an HDF5 file
-    with h5py.File('./GalCache/BesanconRData.h5', 'w') as hdf5_file:
-        print('Caching R')
-        for idx, data_dict in enumerate(ModelRCache):
-            # Create a group for each dictionary
-            group = hdf5_file.create_group(f'Rdict_{idx}')
-            # Store each list as a dataset within the group
-            for key, value in data_dict.items():
-                group.create_dataset(key, data=value, compression='gzip')
-                
-    #Recalculate the z-CDFs:
-    
-    #Sampling points dimension 1
-    iBinSampleSet = [i for i in range(10)]
-
-    # Create another HDF5 file
-    with h5py.File('./GalCache/BesanconRZData.h5', 'w') as hdf5_file:
-        for iBin in iBinSampleSet:
-            print('Caching Bin ' + str(iBin+1))
-            # Create a group for each x value
-            x_group = hdf5_file.create_group(f'bin_{iBin+1}')
-            rSet    = ModelRCache[iBin]['MidRSet']
-            rIDs    = list(range(len(rSet)))
-            for rID in rIDs:
-                if (rID % 100) == 0:
-                    print('rID '+ str(rID))
-                # Create a subgroup for each y value within the x group
-                y_group = x_group.create_group(f'r_{rID}')
-                # Compute the function output
-                data_dict = GetZCDF(rSet[rID], iBin + 1,'Besancon')
-                # Store each list in the dictionary as a dataset
-                for key, value in data_dict.items():
-                    y_group.create_dataset(key, data=value, compression='gzip')
-                    
-#Load the previously calculated r CDFs
-ModelRCache     = []
-for Dict in load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5'):
-    # Process each dictionary one at a time
-    ModelRCache.append(Dict)        
-#Load the previously calculated rz CDFs
-ZCDFDictSet = load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
-
-
-#Get the z-CDFs
-
-def DrawRZ(iBin,Model):
-    MidRSet    = ModelRCache[iBin-1]['MidRSet']
-    RCDFSet    = ModelRCache[iBin-1]['RCDFSet']
-    
-    Xir        = np.random.rand()
-    RFin       = np.interp(Xir,RCDFSet,MidRSet)
-    zFin       = GetZ(RFin,iBin-1,Model)
-    
-    return [RFin,zFin]
-
-    # def RCDFInv(Xir,Hr):    
-    #     # Get the parameters for the inverse CDF
-    #     def RCD(R):
-    #         Res = (1-np.exp(-R/Hr))-(R/Hr)*np.exp(-R/Hr)-Xir
-    #         return Res
-        
-    #     Sol  = sp.optimize.root_scalar(RCD,bracket=(0.0001*Hr,20*Hr))
-    #     if Sol.converged:
-    #         R      = Sol.root
-    #     else:
-    #         print('The radial solution did not converge')
-    #         sys.exit()
-    #     return R
-    
-def DrawStar(Model,iBin):
-    if iBin == -1:
-        BinSet = list(range(1,11))
-        iBin   = np.random.choice(BinSet, p=NormConstantsDict['BinMassFractions'])
-    RZ     = DrawRZ(iBin,Model)
-    Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
-    FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
-    
-    Res = {'RZ': RZ, 'Bin': iBin, 'Age': Age, 'FeH': FeH}
-
-    return Res
-
 
 
 #Draw the Galactic positions
@@ -752,7 +830,7 @@ ThSetFin = np.zeros(OutputChunkSize)
 XSetFin  = np.zeros(OutputChunkSize)
 YSetFin  = np.zeros(OutputChunkSize)
 AgeFin   = np.zeros(OutputChunkSize)
-BinFin   = np.zeros(OutputChunkSize)
+BinFin   = np.zeros(OutputChunkSize,dtype=int)
 FeHFin   = np.zeros(OutputChunkSize)
 
 for Ch in range(NChunks):
@@ -765,7 +843,7 @@ for Ch in range(NChunks):
         XSetFin  = np.zeros(NDo)
         YSetFin  = np.zeros(NDo)
         AgeFin   = np.zeros(NDo)
-        BinFin   = np.zeros(NDo)
+        BinFin   = np.zeros(NDo,dtype=int)
         FeHFin   = np.zeros(NDo)
         
     
@@ -776,11 +854,11 @@ for Ch in range(NChunks):
     #Then define a temporary function that draws positions for this chunk
     if ModelParams['ImportSimulation']:
         def DrawPos(i):
-            return DrawStar('Besancon', int(BinIDSet.iloc[i]) + 1)
+            return DrawStar('Besancon', int(BinIDSet.iloc[i] + 1) + 1)
     else:
-        ResCurr     = DrawStar('Besancon', -1)
+        #ResCurr     = DrawStar('Besancon', -1)
         def DrawPos(i):
-            return DrawStar('Besancon', int(BinIDSet.iloc[i]) + 1)
+            return DrawStar('Besancon', int(BinIDSet.iloc[i] + 1) + 1)
         
     iSet = [i for i in range(NDo)]
     
@@ -793,43 +871,57 @@ for Ch in range(NChunks):
     #    for res in exe.map(DrawPos, iSet, chunksize=MultiProcessSize):
     #        ChunkPosSet.append(res)
     
-    DrawPosUse  = np.vectorize(DrawPos)
-    ChunkPosSet = DrawPosUse(iSet)
+    #DrawPosUse  = np.vectorize(DrawPos)
+    #ChunkPosSet = DrawPosUse(iSet)
+    ChunkPosSetR = PresentDayDWDCandFinDF.iloc[NGalDo-NLeft:NGalDo - NLeft + NDo]['Rkpc']
+    ChunkPosSetZ = PresentDayDWDCandFinDF.iloc[NGalDo-NLeft:NGalDo - NLeft + NDo]['Zkpc']
     
+    #Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
+    #FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
     
+
     for i in range(NDo):
         if (NGalDo - NLeft + i) % OutputChunkSize == 0:
             print('Step 2: ', (NGalDo - NLeft + i), '/',NGalDo)
         if ModelParams['ImportSimulation']:
             #ResCurr     = DrawStar('Besancon', int(PresentDayDWDCandFinDF.iloc[NGalDo - NLeft + i]['BinID']) + 1)
-            ResCurr     = ChunkPosSet[i]
-            AgeFin[i]   = PresentDayDWDCandFinDF.iloc[NGalDo - NLeft + i]['SubBinMidAge']
+            RSetFin[i]   = ChunkPosSetR.iloc[i]
+            ZSetFin[i]   = ChunkPosSetZ.iloc[i]
+            BinFin[i]    = int(BinIDSet.iloc[i]) + 1
+            AgeFin[i]    = np.random.uniform(BesanconParamsDefined['AgeMin'][BinFin[i]-1],BesanconParamsDefined['AgeMax'][BinFin[i]-1])
+            FeHFin[i]    = np.random.normal(BesanconParamsDefined['FeHMean'][BinFin[i]-1],BesanconParamsDefined['FeHStD'][BinFin[i]-1])
+            #AgeFin[i]    = PresentDayDWDCandFinDF.iloc[NGalDo - NLeft + i]['SubBinMidAge']
         else:
             #ResCurr     = DrawStar('Besancon', -1)
-            ResCurr     = ChunkPosSet[i]
-            AgeFin[i]   = ResCurr['Age']
+            RSetFin[i]   = ChunkPosSetR.iloc[i]
+            ZSetFin[i]   = ChunkPosSetZ.iloc[i]
+            BinFin[i]    = int(BinIDSet.iloc[i]) + 1
+            AgeFin[i]    = np.random.uniform(BesanconParamsDefined['AgeMin'][BinFin[i]-1],BesanconParamsDefined['AgeMax'][BinFin[i]-1])
+            FeHFin[i]    = np.random.normal(BesanconParamsDefined['FeHMean'][BinFin[i]-1],BesanconParamsDefined['FeHStD'][BinFin[i]-1])
     
-        BinFin[i]   = ResCurr['Bin']
-        FeHFin[i]   = ResCurr['FeH']
-        if not (ResCurr['Bin'] == 10):
-            RSetFin[i]  = ResCurr['RZ'][0]
-            ZSetFin[i]  = ResCurr['RZ'][1]
+        #BinFin[i]   = ResCurr['Bin']
+        #FeHFin[i]   = ResCurr['FeH']
+        if not (BinFin[i] == 10):
+            #RSetFin[i]  = ResCurr['RZ'][0]
+            #ZSetFin[i]  = ResCurr['RZ'][1]
             Th          = 2.*np.pi*np.random.uniform()
             ThSetFin[i] = Th
-            XSetFin[i]  = ResCurr['RZ'][0]*np.cos(Th)
-            YSetFin[i]  = ResCurr['RZ'][0]*np.sin(Th)
+            XSetFin[i]  = RSetFin[i]*np.cos(Th)
+            YSetFin[i]  = RSetFin[i]*np.sin(Th)
         else:
             #The bulge
             #R and Z are such that Z is the -X axis of the bulge, and R=(X,Y) are (Y,-Z) axes of the bulge
             #First transform to bulge coordinates
             Th          = 2.*np.pi*np.random.uniform()
-            Rad         = ResCurr['RZ'][0]
+            Rad         = RSetFin[i]
             XPrime      = Rad*np.cos(Th)
             YPrime      = Rad*np.sin(Th)
-            ZPrime      = ResCurr['RZ'][1]
+            ZPrime      = ZSetFin[i]
             #ASSUMING THE ALPHA ANGLE IS ALONG THE GALACTIC ROTATION - CHECK DWEK
             XSetFin[i]  = -ZPrime*np.sin(Alpha) + XPrime*np.cos(Alpha)
             YSetFin[i]  = ZPrime*np.cos(Alpha) + XPrime*np.sin(Alpha)
+            ThPre       = np.arctan2(YSetFin[i], XSetFin[i])
+            ThSetFin[i] = np.mod(ThPre, 2*np.pi)
             ZSetFin[i]  = -YPrime
             RSetFin[i]  = np.sqrt(XPrime**2 + ZPrime**2)
 
@@ -844,9 +936,10 @@ for Ch in range(NChunks):
     Gall[YRel>=0] = np.arccos(XRel[YRel>=0]/(np.sqrt((RRel[YRel>=0])**2 - (ZRel[YRel>=0])**2)))
     Gall[YRel<0]  = 2*np.pi - np.arccos(XRel[YRel<0]/(np.sqrt((RRel[YRel<0])**2 - (ZRel[YRel<0])**2)))
     
-    ResDict    = {'Bin': BinFin, 'Age': AgeFin, 'FeH': FeHFin, 'Xkpc': XSetFin, 'Ykpc': YSetFin, 'Zkpc': ZSetFin, 'Rkpc': RSetFin, 'Th': Th, 'XRelkpc': XRel, 'YRelkpc':YRel, 'ZRelkpc': ZRel, 'RRelkpc': RRel, 'Galb': Galb, 'Gall': Gall}
+    ResDict    = {'Bin': BinFin, 'Age': AgeFin, 'FeH': FeHFin, 'Xkpc': XSetFin, 'Ykpc': YSetFin, 'Zkpc': ZSetFin, 'Rkpc': RSetFin, 'Th': ThSetFin, 'XRelkpc': XRel, 'YRelkpc':YRel, 'ZRelkpc': ZRel, 'RRelkpc': RRel, 'Galb': Galb, 'Gall': Gall}
     ResDF      = pd.DataFrame(ResDict)
     MatchDWDDF = PresentDayDWDCandFinDF.iloc[NGalDo-NLeft:NGalDo-NLeft+NDo].reset_index(drop=True)
+    MatchDWDDF = MatchDWDDF.drop(columns=["Zkpc", "Rkpc"])
     
     #DWDDF    = DWDSet.iloc[IDSet]
     if ModelParams['ImportSimulation']:
@@ -893,7 +986,8 @@ if ModelParams['ImportSimulation']:
     detectable_threshold = cutoff
     detectable_sources   = sources.snr > cutoff
     
-    LISADF = ResDF[detectable_sources]
+    LISADF        = ResDF[detectable_sources]
+    LISADF['SNR'] = sources.snr[detectable_sources]
     
 
     LISADF.to_csv(CurrOutDir+Code+'_Galaxy_LISA_DWDs.csv', index = False)
