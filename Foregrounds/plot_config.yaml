@@ -1,5 +1,6 @@
 # --- Global plotting settings ---
 
+channel_toplot: 'A'
 medium_size: 28
 bigger_size: 32
 dpi: 100

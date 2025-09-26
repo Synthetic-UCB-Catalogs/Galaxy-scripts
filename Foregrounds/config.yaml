@@ -5,14 +5,14 @@ basepath: "${EXPERIMENT_ROOT}/data"
 inputpath: "${EXPERIMENT_ROOT}/input"
 outputpath: "${EXPERIMENT_ROOT}/output"
 waveformpath: "${EXPERIMENT_ROOT}/waveforms"
-#datapath: "monte_carlo_comparisons_lightweight_500K_DWDs/initial_condition_variations/fiducial/"
-datapath: "monte_carlo_comparisons/initial_condition_variations/fiducial/"
+datapath: "monte_carlo_comparisons_lightweight_500K_DWDs/initial_condition_variations/fiducial/"
+#datapath: "monte_carlo_comparisons/initial_condition_variations/fiducial/"
 
-num_chunks: 8     # split the hdf5 catalog in a number of chunks
+num_chunks: 4     # split the hdf5 catalog in a number of chunks
 
-duration: 4       # LISA observation time [years]
-dt: 5            # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
-use_gpu: true
+duration: 2       # LISA observation time [years]
+dt: 10            # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
+use_gpu: false
 icloop_kwargs:        # kwargs for gwg main loop
   snr_cutoff: 7       # changed notation for convenience; this is converted to kwarg "snr_thresh2=snr_cutoff**2"
   methoduse: "mean"   # smoothing method: running median or mean
@@ -20,6 +20,8 @@ icloop_kwargs:        # kwargs for gwg main loop
   maxiter: 10         # maximum number of iterations (stopping condition)
   tol: 0.05           # relative change (stopping condition)
   doplot: true        # plots from intermediate iterations are also saved to the output directory
-  oversample: 4
+  oversample: 1
+  extra_smooth: true
+  order: 2000000
 
 

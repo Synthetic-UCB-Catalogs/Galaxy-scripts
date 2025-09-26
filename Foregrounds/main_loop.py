@@ -121,6 +121,8 @@ if __name__ == "__main__":
     icloop_kwargs['use_gbgpu'] = use_gpu
     if icloop_kwargs.get('doplot', False):
         icloop_kwargs['tag'] = f"{code}_"
+    if icloop_kwargs.get('extra_smooth', False):
+        icloop_kwargs['order'] = int(icloop_kwargs.get('order', 20000))
 
     # --- Step 3: Run the Main `icloop` Computation ---
     print("INFO: Starting the main `icloop` iterative process...")
@@ -166,8 +168,12 @@ if __name__ == "__main__":
     f_plot = S1['A'].f
     instr_noise = gwg.get_instr_noise(lisa_noise, f_plot)
 
-    ax.loglog(f_plot, np.absolute(S1['A']), label='Final Smoothed Spectrum', color='blue', lw=2)
-    ax.loglog(instr_noise["f"], np.absolute(instr_noise["A"]), 'k', lw=2, label='LISA Noise', linestyle='dashed')
+    channel = plot_settings['channel_toplot']
+    ax.loglog(f_plot, np.absolute(S1[channel]), label='Final Smoothed Spectrum', color='blue', lw=2)
+    ax.loglog(
+        instr_noise["f"], np.absolute(instr_noise[channel]), 
+        'k', lw=2, label='LISA Noise', linestyle='dashed'
+        )
     
     ax.legend(loc='upper left')
     ax.set_xlim(1e-4, 1e-2)
