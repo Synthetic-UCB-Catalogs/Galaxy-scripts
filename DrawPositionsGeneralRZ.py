@@ -40,6 +40,8 @@ from rapid_code_load_T0 import load_T0_data
 # 3) Run the code with 'ImportSimulation' set to True
 # 4) Post-process the simulation with the companion visualisation code (Plot3DGal.py)
 
+#XXX! Make sure that thick disc does not get made in a burst - otherwise too few binaries contribute (or diagnose further)
+
 #Model parameters and options 
 ModelParams = { #Main options
                'GalaxyModel': 'Besancon', #Currently can only be Besancon
@@ -817,7 +819,6 @@ else:
     
 
 
-
 OutputChunkSize  = 100000
 MultiProcessSize = 100
 NChunks          = int(NGalDo/OutputChunkSize) + 1
@@ -835,6 +836,7 @@ FeHFin   = np.zeros(OutputChunkSize)
 
 for Ch in range(NChunks):
     NDo  = min(NLeft,OutputChunkSize)
+    print('Step 2: ', (NGalDo - NLeft), '/',NGalDo)
     
     if NDo < OutputChunkSize:
         RSetFin  = np.zeros(NDo)
@@ -845,86 +847,64 @@ for Ch in range(NChunks):
         AgeFin   = np.zeros(NDo)
         BinFin   = np.zeros(NDo,dtype=int)
         FeHFin   = np.zeros(NDo)
-        
-    
-    #Draw all the needed positions for the chunk
-    #First get the Bin ID for which we need the positions
-    BinIDSet = PresentDayDWDCandFinDF.iloc[NGalDo-NLeft:NGalDo - NLeft + NDo]['BinID']
-    
-    #Then define a temporary function that draws positions for this chunk
-    if ModelParams['ImportSimulation']:
-        def DrawPos(i):
-            return DrawStar('Besancon', int(BinIDSet.iloc[i] + 1) + 1)
-    else:
-        #ResCurr     = DrawStar('Besancon', -1)
-        def DrawPos(i):
-            return DrawStar('Besancon', int(BinIDSet.iloc[i] + 1) + 1)
-        
-    iSet = [i for i in range(NDo)]
-    
-    #Tested parallel processing for this part - eventually it seems more effective to call the whole convolution per core
-    #max_workers = os.cpu_count()
-    
-    #ChunkPosSet = []
-    # 
-    #with ProcessPoolExecutor(max_workers=max_workers) as exe:
-    #    for res in exe.map(DrawPos, iSet, chunksize=MultiProcessSize):
-    #        ChunkPosSet.append(res)
-    
-    #DrawPosUse  = np.vectorize(DrawPos)
-    #ChunkPosSet = DrawPosUse(iSet)
-    ChunkPosSetR = PresentDayDWDCandFinDF.iloc[NGalDo-NLeft:NGalDo - NLeft + NDo]['Rkpc']
-    ChunkPosSetZ = PresentDayDWDCandFinDF.iloc[NGalDo-NLeft:NGalDo - NLeft + NDo]['Zkpc']
-    
-    #Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
-    #FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
-    
 
-    for i in range(NDo):
-        if (NGalDo - NLeft + i) % OutputChunkSize == 0:
-            print('Step 2: ', (NGalDo - NLeft + i), '/',NGalDo)
-        if ModelParams['ImportSimulation']:
-            #ResCurr     = DrawStar('Besancon', int(PresentDayDWDCandFinDF.iloc[NGalDo - NLeft + i]['BinID']) + 1)
-            RSetFin[i]   = ChunkPosSetR.iloc[i]
-            ZSetFin[i]   = ChunkPosSetZ.iloc[i]
-            BinFin[i]    = int(BinIDSet.iloc[i]) + 1
-            AgeFin[i]    = np.random.uniform(BesanconParamsDefined['AgeMin'][BinFin[i]-1],BesanconParamsDefined['AgeMax'][BinFin[i]-1])
-            FeHFin[i]    = np.random.normal(BesanconParamsDefined['FeHMean'][BinFin[i]-1],BesanconParamsDefined['FeHStD'][BinFin[i]-1])
-            #AgeFin[i]    = PresentDayDWDCandFinDF.iloc[NGalDo - NLeft + i]['SubBinMidAge']
-        else:
-            #ResCurr     = DrawStar('Besancon', -1)
-            RSetFin[i]   = ChunkPosSetR.iloc[i]
-            ZSetFin[i]   = ChunkPosSetZ.iloc[i]
-            BinFin[i]    = int(BinIDSet.iloc[i]) + 1
-            AgeFin[i]    = np.random.uniform(BesanconParamsDefined['AgeMin'][BinFin[i]-1],BesanconParamsDefined['AgeMax'][BinFin[i]-1])
-            FeHFin[i]    = np.random.normal(BesanconParamsDefined['FeHMean'][BinFin[i]-1],BesanconParamsDefined['FeHStD'][BinFin[i]-1])
+    #        
+    StartIDX = NGalDo - NLeft
+    StopIDX  = NGalDo - NLeft + NDo
     
-        #BinFin[i]   = ResCurr['Bin']
-        #FeHFin[i]   = ResCurr['FeH']
-        if not (BinFin[i] == 10):
-            #RSetFin[i]  = ResCurr['RZ'][0]
-            #ZSetFin[i]  = ResCurr['RZ'][1]
-            Th          = 2.*np.pi*np.random.uniform()
-            ThSetFin[i] = Th
-            XSetFin[i]  = RSetFin[i]*np.cos(Th)
-            YSetFin[i]  = RSetFin[i]*np.sin(Th)
+    #Extract the ID's of the Galactic bins
+    BinIDSet = PresentDayDWDCandFinDF['BinID'].to_numpy()[StartIDX:StopIDX]
+    
+    #Convert to integer BinID's
+    BinFin   = np.astype(BinIDSet,int)+1
+    
+    #Extract the positions, to convert them to the Galactic coordinates
+    ChunkPosSetR = PresentDayDWDCandFinDF['Rkpc'].to_numpy()[StartIDX:StopIDX]
+    ChunkPosSetZ = PresentDayDWDCandFinDF['Zkpc'].to_numpy()[StartIDX:StopIDX]
+    
+    #Make a copy
+    RSetFin      = ChunkPosSetR
+    ZSetFin      = ChunkPosSetZ
+    
+    #Make use of the fact that the Galactic bins are ordered and vectorise the operations
+    RepeatingBin, RepeatingBinCounts = np.unique(BinFin, return_counts=True)
+    #print(dict(zip(RepeatingBin, RepeatingBinCounts)))
+    
+    
+    CNTBin = 0
+    for i in range(len(RepeatingBin)):
+        CurrBin = RepeatingBin[i]
+        StartIDXHere = CNTBin
+        StopIDXHere  = CNTBin + RepeatingBinCounts[i]
+        AgeMin  = BesanconParamsDefined['AgeMin'][CurrBin-1]
+        AgeMax  = BesanconParamsDefined['AgeMax'][CurrBin-1]
+        FeHMean = BesanconParamsDefined['FeHMean'][CurrBin-1]
+        FeHStD  = BesanconParamsDefined['FeHStD'][CurrBin-1]
+        AgeSet  = np.random.uniform(AgeMin,AgeMax,RepeatingBinCounts[i])
+        FeHSet  = np.random.normal(FeHMean,FeHStD,RepeatingBinCounts[i])
+        AgeFin[StartIDXHere:StopIDXHere] = AgeSet
+        FeHFin[StartIDXHere:StopIDXHere] = FeHSet
+        if not (CurrBin == 10):
+            ThSet       = 2.*np.pi*np.random.uniform(0,1,RepeatingBinCounts[i])
+            ThSetFin[StartIDXHere:StopIDXHere] = ThSet
+            XSetFin[StartIDXHere:StopIDXHere]  = RSetFin[StartIDXHere:StopIDXHere]*np.cos(ThSet)
+            YSetFin[StartIDXHere:StopIDXHere]  = RSetFin[StartIDXHere:StopIDXHere]*np.sin(ThSet)
         else:
-            #The bulge
-            #R and Z are such that Z is the -X axis of the bulge, and R=(X,Y) are (Y,-Z) axes of the bulge
-            #First transform to bulge coordinates
-            Th          = 2.*np.pi*np.random.uniform()
-            Rad         = RSetFin[i]
-            XPrime      = Rad*np.cos(Th)
-            YPrime      = Rad*np.sin(Th)
-            ZPrime      = ZSetFin[i]
+            ThSet       = 2.*np.pi*np.random.uniform(0,1,RepeatingBinCounts[i])
+            Rad         = RSetFin[StartIDXHere:StopIDXHere]
+            XPrime      = Rad*np.cos(ThSet)
+            YPrime      = Rad*np.sin(ThSet)
+            ZPrime      = ZSetFin[StartIDXHere:StopIDXHere]
             #ASSUMING THE ALPHA ANGLE IS ALONG THE GALACTIC ROTATION - CHECK DWEK
-            XSetFin[i]  = -ZPrime*np.sin(Alpha) + XPrime*np.cos(Alpha)
-            YSetFin[i]  = ZPrime*np.cos(Alpha) + XPrime*np.sin(Alpha)
-            ThPre       = np.arctan2(YSetFin[i], XSetFin[i])
-            ThSetFin[i] = np.mod(ThPre, 2*np.pi)
-            ZSetFin[i]  = -YPrime
-            RSetFin[i]  = np.sqrt(XPrime**2 + ZPrime**2)
-
+            XSetFin[StartIDXHere:StopIDXHere]  = -ZPrime*np.sin(Alpha) + XPrime*np.cos(Alpha)
+            YSetFin[StartIDXHere:StopIDXHere]  = ZPrime*np.cos(Alpha) + XPrime*np.sin(Alpha)
+            ThPre       = np.arctan2(YSetFin[StartIDXHere:StopIDXHere], XSetFin[StartIDXHere:StopIDXHere])
+            ThSetFin[StartIDXHere:StopIDXHere] = np.mod(ThPre, 2*np.pi)
+            ZSetFin[StartIDXHere:StopIDXHere]  = -YPrime
+            RSetFin[StartIDXHere:StopIDXHere]   = np.sqrt(XPrime**2 + ZPrime**2)
+        
+        CNTBin  += RepeatingBinCounts[i]
+   
     #Remember the right-handedness
     XRel     = XSetFin - GalaxyParams['RGalSun']
     YRel     = YSetFin
@@ -942,6 +922,8 @@ for Ch in range(NChunks):
     MatchDWDDF = MatchDWDDF.drop(columns=["Zkpc", "Rkpc"])
     
     #DWDDF    = DWDSet.iloc[IDSet]
+    print('Saving the outputs')
+    
     if ModelParams['ImportSimulation']:
         ResDF      = pd.concat([ResDF, MatchDWDDF], axis=1)
         if FirstPassQ:
@@ -966,6 +948,8 @@ elapsed = time.perf_counter() - start
 print('Convolution execution time: ', elapsed)
     
 
+print('LISA signal calculation')
+
 #Export only LISA-visible DWDs
 if ModelParams['ImportSimulation']:
     
@@ -986,13 +970,14 @@ if ModelParams['ImportSimulation']:
     detectable_threshold = cutoff
     detectable_sources   = sources.snr > cutoff
     
-    LISADF        = ResDF[detectable_sources]
-    LISADF['SNR'] = sources.snr[detectable_sources]
+    LISADF        = ResDF[detectable_sources].copy()
     
+    LISADF.loc[:, 'SNR'] = pd.Series(sources.snr[detectable_sources], index=LISADF.index)
 
     LISADF.to_csv(CurrOutDir+Code+'_Galaxy_LISA_DWDs.csv', index = False)
 
 
 
+print('LISA signal calculation done')
     
     
