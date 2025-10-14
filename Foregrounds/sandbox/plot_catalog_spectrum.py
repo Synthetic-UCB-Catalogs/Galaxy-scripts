@@ -261,7 +261,10 @@ def main():
 
     # Plot 1: Frequency Histogram
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.hist(cat_df['Frequency'], bins=np.logspace(-5, -1, 100), histtype='step', lw=2)
+    ax.hist(
+        cat_df['Frequency'], bins=np.logspace(-5, -1, 100), density=True
+        histtype='step', lw=2
+    )
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlabel('Frequency [Hz]')
