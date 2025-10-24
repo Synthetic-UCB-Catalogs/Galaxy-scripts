@@ -56,7 +56,7 @@ def calculate_td_waveform_batch(amplitudes, f0, fdot0, psi0, t_vector):
 # Each function is a self-contained workflow for a single method.
 # ==============================================================================
 
-def run_approx_fd_method(config, plot_settings, cat_df, code, batch_size=100, batching=True):
+def run_approx_fd_method(config, plot_settings, cat_df, code, batch_size=1000, batching=True):
     """
     Calculates and plots the spectrum using the approximate FD summation method.
     """
@@ -115,7 +115,7 @@ def run_approx_fd_method(config, plot_settings, cat_df, code, batch_size=100, ba
     print(f"FD spectrum plot saved to: {spectrum_path}")
     plt.close(fig)
 
-def run_td_summation_method(config, plot_settings, cat_df, code, batch_size=20, batching=True):
+def run_td_summation_method(config, plot_settings, cat_df, code, batch_size=100, batching=True):
     """
     Calculates and plots the spectrum using the TD summation + FFT method.
     """
@@ -261,10 +261,14 @@ def main():
 
     # Plot 1: Frequency Histogram
     fig, ax = plt.subplots(figsize=(10, 6))
+<<<<<<< Updated upstream
     ax.hist(
         cat_df['Frequency'], bins=np.logspace(-5, -1, 100), density=True
         histtype='step', lw=2
     )
+=======
+    ax.hist(cat_df['Frequency'], bins=np.logspace(-5, -1, 100), density=True, histtype='step', lw=2)
+>>>>>>> Stashed changes
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlabel('Frequency [Hz]')
