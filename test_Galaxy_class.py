@@ -16,12 +16,13 @@ ModelParams = { #Main options
                #'RunSubType': 'm2_min_05',
                #'RunSubType': 'qmin_01',
                #'RunSubType': 'porb_log_uniform',
-               'RunSubType': 'alpha_lambda_02',
+               'RunSubType': 'accretion_0',
+               'Code': 'BPASS',
                #'Code': 'BSE',
                #'Code': 'COSMIC',
                #'Code': 'METISSE',
                #'Code': 'SeBa',     
-               'Code': 'SEVN',
+               #'Code': 'SEVN',
                #'Code': 'ComBinE',
                #'Code': 'COMPAS',
                #Simulation parameters
@@ -41,6 +42,8 @@ ModelParams = { #Main options
 if ModelParams['RunWave'] == 'initial_condition_variations':
     if ModelParams['Code'] == 'SEVN':
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_MIST_T0.csv'  # FilePath to the T0 data file
+    elif ModelParams['Code'] == 'BPASS':
+        T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.csv'  # FilePath to the T0 data file
     else:
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
     write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
@@ -62,6 +65,8 @@ elif ModelParams['RunWave'] == 'mass_transfer_variations':
     
     if ModelParams['Code'] == 'SEVN':
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code'] + '_MIST_T0.csv'  # FilePath to the T0 data file
+    elif ModelParams['Code'] == 'BPASS':
+        T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code'] + '_T0.csv'  # FilePath to the T0 data file
     else:
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
     write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
