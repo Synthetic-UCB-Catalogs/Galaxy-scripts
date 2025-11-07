@@ -1,5 +1,6 @@
 import galaxy
 import os
+import argparse
 
 # set the model parameters for the Galaxy class
 ModelParams = { #Main options
@@ -38,6 +39,18 @@ ModelParams = { #Main options
                'NPoints': 1e5, # Number of stars to sample if we just sample present-day stars
                'datPath': os.environ['UCB_GOOGLE_DRIVE_DIR'] # replace with path to your data
     }
+
+# Use argparse to optionally override ModelParams from command line
+parser = argparse.ArgumentParser(description='Set ModelParams for Galaxy class.')
+for key, item in ModelParams.items():
+    if isinstance(item, bool):
+        parser.add_argument(f'--{key}', type=lambda x: (str(x).lower() == 'true'), default=item, help=f'Set {key} (default: {item})')
+    else:
+        parser.add_argument(f'--{key}', type=type(item), default=item, help=f'Set {key} (default: {item})')
+
+args = parser.parse_args()
+for key in ModelParams.keys():
+    ModelParams[key] = getattr(args, key)
 
 if ModelParams['RunWave'] == 'initial_condition_variations':
     if ModelParams['Code'] == 'SEVN':
