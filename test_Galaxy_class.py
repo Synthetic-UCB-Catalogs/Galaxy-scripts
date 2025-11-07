@@ -37,7 +37,7 @@ ModelParams = { #Main options
                'UseOneBinOnly': False, #If False - use full model; if True - use just one bin, for visualizations
                'OneBinToUse': 10, #Number of the bin, if only one bin in used
                'NPoints': 1e5, # Number of stars to sample if we just sample present-day stars
-               'datPath': os.environ['UCB_GOOGLE_DRIVE_DIR'] # replace with path to your data
+               'datPath': 'path_to_dat' #os.environ['UCB_GOOGLE_DRIVE_DIR'] # replace with path to your data
     }
 
 # Use argparse to optionally override ModelParams from command line
