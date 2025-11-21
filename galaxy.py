@@ -121,6 +121,7 @@ class Galaxy:
         # Compute the Bezanscon CDFs if needed
         if self.ModelParams['RecalculateCDFs']:
             _ = self.calculate_CDFs
+            print('CDFs calculated!')
         
         # Create the galaxy component DataFrame
         _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
