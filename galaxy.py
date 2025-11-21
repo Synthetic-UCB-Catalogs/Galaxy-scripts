@@ -61,8 +61,53 @@ class Galaxy:
         self.N_DWD_Gx = pop_create.get_N_Gx_sample(self.T0_DWD_LISA, self.ModelParams)
 
     # Implement calculation of CDFs
-    #def calculate_CDFs(self):
-    # Maybe also implement default CDF for project w/ Besancon model
+    def calculate_CDFs(self):
+        # Maybe also implement default CDF for project w/ Besancon model
+        #Get the R-CDFs
+        if self.ModelParams['RecalculateCDFs']: 
+            from cdf_scripts import PreCompute
+            
+            #Recalculate the r CDFs first:
+            ModelRCache     = []
+            for i in range(10):
+                ModelRCache.append(PreCompute(i+1,'Besancon'))
+        
+            # Create an HDF5 file
+            with h5py.File('./GalCache/BesanconRData.h5', 'w') as hdf5_file:
+                print('Caching R')
+                for idx, data_dict in enumerate(ModelRCache):
+                    # Create a group for each dictionary
+                    group = hdf5_file.create_group(f'Rdict_{idx}')
+                    # Store each list as a dataset within the group
+                    for key, value in data_dict.items():
+                        group.create_dataset(key, data=value, compression='gzip')
+                        
+            #Recalculate the z-CDFs:
+            
+            #Sampling points dimension 1
+            iBinSampleSet = [i for i in range(10)]
+        
+            # Create another HDF5 file
+            with h5py.File('./GalCache/BesanconRZData.h5', 'w') as hdf5_file:
+                for iBin in iBinSampleSet:
+                    print('Caching Bin ' + str(iBin+1))
+                    # Create a group for each x value
+                    x_group = hdf5_file.create_group(f'bin_{iBin+1}')
+                    rSet    = ModelRCache[iBin]['MidRSet']
+                    rIDs    = list(range(len(rSet)))
+                    for rID in rIDs:
+                        if (rID % 100) == 0:
+                            print('rID '+ str(rID))
+                        # Create a subgroup for each y value within the x group
+                        y_group = x_group.create_group(f'r_{rID}')
+                        # Compute the function output
+                        data_dict = GetZCDF(rSet[rID], iBin + 1,'Besancon')
+                        # Store each list in the dictionary as a dataset
+                        for key, value in data_dict.items():
+                            y_group.create_dataset(key, data=value, compression='gzip')
+
+        return None
+    
 
     # Create Galaxy
     def create_galaxy(self, write_path=None, verbose=False, write_h5=False):
@@ -72,6 +117,10 @@ class Galaxy:
         
         # Calculate the number of DWDs in the Galaxy
         self.calculate_N_DWD_Gx()
+
+        # Compute the Bezanscon CDFs if needed
+        if self.ModelParams['RecalculateCDFs']:
+            _ = self.calculate_CDFs
         
         # Create the galaxy component DataFrame
         _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
