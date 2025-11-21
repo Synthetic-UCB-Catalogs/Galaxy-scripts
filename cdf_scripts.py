@@ -220,7 +220,7 @@ if __name__=="__main__":
     try:
         NormConstantsDF   = pd.read_csv('./Data/BesanconGalacticConstants.csv')
         NormConstantsDict = NormConstantsDF.to_dict(orient='list')
-    else:
+    except:
         NormCSet = np.zeros(len(BesanconParamsDefined['BinName']),dtype=float)
         
         # Calculate volume integral for each Galactic component
