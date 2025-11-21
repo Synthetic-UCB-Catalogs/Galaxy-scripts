@@ -64,6 +64,7 @@ class Galaxy:
     def calculate_CDFs(self):
         # Maybe also implement default CDF for project w/ Besancon model
         #Get the R-CDFs
+        print(self.ModelParams['RecalculateCDFs'])
         if self.ModelParams['RecalculateCDFs']: 
             from cdf_scripts import PreCompute
             
@@ -81,6 +82,7 @@ class Galaxy:
                     # Store each list as a dataset within the group
                     for key, value in data_dict.items():
                         group.create_dataset(key, data=value, compression='gzip')
+            print('R Cache saved')
                         
             #Recalculate the z-CDFs:
             
