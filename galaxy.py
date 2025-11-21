@@ -122,7 +122,7 @@ class Galaxy:
 
         # Compute the Bezanscon CDFs if needed
         if self.ModelParams['RecalculateCDFs']:
-            _ = self.calculate_CDFs
+            _ = self.calculate_CDFs()
             print('CDFs calculated!')
         
         # Create the galaxy component DataFrame
