@@ -107,6 +107,9 @@ class Galaxy:
                         # Store each list in the dictionary as a dataset
                         for key, value in data_dict.items():
                             y_group.create_dataset(key, data=value, compression='gzip')
+        else:
+            print('Reclaculate CDFs is false')
+            
 
         return None
     
