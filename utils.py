@@ -125,7 +125,7 @@ def galaxy_params(key):
     return GalaxyParams.get(key, None)
 
 
-def Besancon_params(key):
+def Besanscon_params(key):
    '''Returns the parameters for the Besancon model based on the key provided.
    Parameters
    ----------

@@ -62,15 +62,17 @@ class Galaxy:
 
     # Implement calculation of CDFs
     def calculate_CDFs(self):
+        import h5py
         # Maybe also implement default CDF for project w/ Besancon model
         #Get the R-CDFs
         if self.ModelParams['RecalculateCDFs']: 
-            from cdf_scripts import PreCompute
+            print("Calculating the CDFs!")
+            from cdf_scripts import PreCompute, GetZCDF
             
             #Recalculate the r CDFs first:
             ModelRCache     = []
             for i in range(10):
-                ModelRCache.append(PreCompute(i+1,'Besancon'))
+                ModelRCache.append(PreCompute(i,'Besancon'))
         
             # Create an HDF5 file
             with h5py.File('./GalCache/BesanconRData.h5', 'w') as hdf5_file:
@@ -102,7 +104,7 @@ class Galaxy:
                         # Create a subgroup for each y value within the x group
                         y_group = x_group.create_group(f'r_{rID}')
                         # Compute the function output
-                        data_dict = GetZCDF(rSet[rID], iBin + 1,'Besancon')
+                        data_dict = GetZCDF(rSet[rID], iBin,'Besancon')
                         # Store each list in the dictionary as a dataset
                         for key, value in data_dict.items():
                             y_group.create_dataset(key, data=value, compression='gzip')
