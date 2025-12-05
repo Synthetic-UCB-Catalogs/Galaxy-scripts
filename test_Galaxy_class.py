@@ -8,17 +8,17 @@ ModelParams = { #Main options
                'RecalculateCDFs': True, #If true, the galaxy distribution CDFs are recalculated (use True when running first time on a new machine)
                'ImportSimulation': True, #If true, construct the present-day DWD populaiton (as opposed to the MS population)               
                #Simulation options
-               #'RunWave': 'initial_condition_variations',
-               'RunWave': 'mass_transfer_variations',
-               #'RunSubType': 'fiducial',
+               'RunWave': 'initial_condition_variations',
+               #'RunWave': 'mass_transfer_variations',
+               'RunSubType': 'fiducial',
                #'RunSubType': 'thermal_ecc',
                #'RunSubType': 'uniform_ecc',
                #'RunSubType': 'm2_min_05',
                #'RunSubType': 'qmin_01',
                #'RunSubType': 'porb_log_uniform',
-               'RunSubType': 'accretion_0',
-               'Code': 'BPASS',
-               #'Code': 'BSE',
+               #'RunSubType': 'accretion_1',
+               #'Code': 'BPASS',
+               'Code': 'BSE',
                #'Code': 'COSMIC',
                #'Code': 'METISSE',
                #'Code': 'SeBa',     
@@ -46,7 +46,11 @@ if ModelParams['RunWave'] == 'initial_condition_variations':
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.csv'  # FilePath to the T0 data file
     else:
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
-    write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+    
+    if ModelParams['UseRepresentingDWDs'] == True:
+        write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+    else:
+        write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + ModelParams['RunSubType'] + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
 elif ModelParams['RunWave'] == 'mass_transfer_variations':
     var_name = ModelParams['RunSubType']
     if var_name == 'fiducial':
@@ -69,7 +73,11 @@ elif ModelParams['RunWave'] == 'mass_transfer_variations':
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code'] + '_T0.csv'  # FilePath to the T0 data file
     else:
         T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code'] + '_T0.hdf5'  # FilePath to the T0 data file
-    write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+    
+    if ModelParams['UseRepresentingDWDs'] == True:
+        write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
+    else:
+        write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['Code']  # Partial Filepath save the Galaxy DataFrame
 else:
     raise ValueError('Invalid RunWave specified.')
 
