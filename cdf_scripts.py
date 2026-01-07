@@ -79,7 +79,7 @@ def GetVolumeIntegral(iBin):
     NPoints =  Besanscon_params('ZNPoints')[iBin]
     
     RRange = np.sqrt((Besanscon_params('XRange')[iBin])**2 + (Besanscon_params('YRange')[iBin])**2)
-    ZRange = Besanscon_params('ZRange')[iBin-1]
+    ZRange = Besanscon_params('ZRange')[iBin]
     
     
     RSet = np.linspace(0, RRange, NPoints)
@@ -97,8 +97,8 @@ def GetVolumeIntegral(iBin):
 
 #Get the column density at a given radius for a given bin
 def GetRhoBar(r, iBin, Model):
-    Nz      = Besanscon_params('ZNPoints')[iBin-1]
-    ZRange  = Besanscon_params('ZRange')[iBin-1]
+    Nz      = Besanscon_params('ZNPoints')[iBin]
+    ZRange  = Besanscon_params('ZRange')[iBin]
     ZSet    = np.linspace(0,ZRange,Nz)
     RhoSet  = np.zeros(Nz)
     for i in range(Nz):
@@ -131,8 +131,8 @@ def GetZ(RFin,iBin,Model):
     
     RSet = ModelRCache[iBin]['MidRSet']
     RID  = min(range(len(RSet)), key=lambda i: abs(RSet[i] - RFin))
-    MidZSet = ZCDFDictSet[iBin+1][RID]['ZSet']
-    RhozCDF = ZCDFDictSet[iBin+1][RID]['RhoCDFSet']
+    MidZSet = ZCDFDictSet[iBin][RID]['ZSet']
+    RhozCDF = ZCDFDictSet[iBin][RID]['RhoCDFSet']
     
     Xiz        = np.random.rand()
     SignXi     = np.sign(2*(np.random.rand() - 0.5))
@@ -141,8 +141,8 @@ def GetZ(RFin,iBin,Model):
     
 #Array of column densities as a function of radius
 def RhoRArray(iBin, Model):
-    Nr      = Besanscon_params('RNPoints')[iBin-1]
-    RRange  = Besanscon_params('RRange')[iBin-1]
+    Nr      = Besanscon_params('RNPoints')[iBin]
+    RRange  = Besanscon_params('RRange')[iBin]
     RSet    = np.linspace(0,RRange,Nr)
     RhoSet  = np.zeros(Nr)
     ZCDFSet = {}

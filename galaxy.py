@@ -133,4 +133,19 @@ class Galaxy:
         _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
         
         return None
+    
+    def create_downsampled_galaxy(self, N_samp=500_000, write_path=None, verbose=False, write_h5=False):
+        """Creates a downsampled DataFrame containing present-day DWDs in the Galaxy."""
+        if self.T0_DWD_LISA is None:
+            raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
+        
+        # Compute the Bezanscon CDFs if needed
+        if self.ModelParams['RecalculateCDFs']:
+            _ = self.calculate_CDFs()
+            print('CDFs calculated!')
+        
+        # Create the downsampled galaxy component DataFrame
+        _ = pop_create.create_downsampled_LISA_galaxy(self.T0_DWD_LISA, N_samp, self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
+        
+        return None
 
