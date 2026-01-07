@@ -105,3 +105,4 @@ except ValueError as ve:
     print(f"ValueError: {ve}")
 
 gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False)
+gx.create_downsampled_galaxy(N_samp=500_000, write_path=write_path + '_downsampled', verbose=False, write_h5=False)
