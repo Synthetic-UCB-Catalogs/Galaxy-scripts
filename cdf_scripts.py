@@ -12,7 +12,7 @@
 #First, specify already known parameters
 
 import numpy as np
-from utils import Besanscon_params, galaxy_params
+from utils import Besancon_params, galaxy_params
 
 #Non-normalized density (Rho(r,z)) for the Besancon model
 # weights are defined later
@@ -21,14 +21,14 @@ def RhoBesancon(r, z, iBin):
     if iBin == 0:
         hPlus  = 5
         hMinus = 3
-        Eps    = Besanscon_params('EpsSetThin')[0]
+        Eps    = Besancon_params('EpsSetThin')[0]
         aParam = np.sqrt(r**2 + z**2/Eps**2)
         Res    = np.exp(-(aParam**2/hPlus**2)) - np.exp(-(aParam**2/hMinus**2))
     #Thin disk - other bins
     elif (iBin >= 1) and (iBin <=6):
         hPlus  = 2.53
         hMinus = 1.32
-        Eps    = Besanscon_params('EpsSetThin')[iBin - 1]
+        Eps    = Besancon_params('EpsSetThin')[iBin - 1]
         aParam = np.sqrt(r**2 + z**2/Eps**2)
         Res    = np.exp(-(0.5**2 + aParam**2/hPlus**2)**0.5) - np.exp(-(0.5**2 + aParam**2/hMinus**2)**0.5)
     #Thick disc
@@ -76,10 +76,10 @@ def RhoBesancon(r, z, iBin):
 
 #2D Volume integrator for the Galactic density components
 def GetVolumeIntegral(iBin):
-    NPoints =  Besanscon_params('ZNPoints')[iBin]
+    NPoints =  Besancon_params('ZNPoints')[iBin]
     
-    RRange = np.sqrt((Besanscon_params('XRange')[iBin])**2 + (Besanscon_params('YRange')[iBin])**2)
-    ZRange = Besanscon_params('ZRange')[iBin]
+    RRange = np.sqrt((Besancon_params('XRange')[iBin])**2 + (Besancon_params('YRange')[iBin])**2)
+    ZRange = Besancon_params('ZRange')[iBin]
     
     
     RSet = np.linspace(0, RRange, NPoints)
@@ -97,8 +97,8 @@ def GetVolumeIntegral(iBin):
 
 #Get the column density at a given radius for a given bin
 def GetRhoBar(r, iBin, Model):
-    Nz      = Besanscon_params('ZNPoints')[iBin]
-    ZRange  = Besanscon_params('ZRange')[iBin]
+    Nz      = Besancon_params('ZNPoints')[iBin]
+    ZRange  = Besancon_params('ZRange')[iBin]
     ZSet    = np.linspace(0,ZRange,Nz)
     RhoSet  = np.zeros(Nz)
     for i in range(Nz):
@@ -109,8 +109,8 @@ def GetRhoBar(r, iBin, Model):
 
 #A new version of GetZ - make a CDF for GetZ and save a grid of CDFs
 def GetZCDF(r,iBin,Model):    
-    Nz      = Besanscon_params('ZNPoints')[iBin]
-    ZRange  = Besanscon_params('ZRange')[iBin]
+    Nz      = Besancon_params('ZNPoints')[iBin]
+    ZRange  = Besancon_params('ZRange')[iBin]
     ZSet    = np.linspace(0,ZRange,Nz)
     RhoSet  = np.zeros(Nz)
     for i in range(Nz):
@@ -141,8 +141,8 @@ def GetZ(RFin,iBin,Model):
     
 #Array of column densities as a function of radius
 def RhoRArray(iBin, Model):
-    Nr      = Besanscon_params('RNPoints')[iBin]
-    RRange  = Besanscon_params('RRange')[iBin]
+    Nr      = Besancon_params('RNPoints')[iBin]
+    RRange  = Besancon_params('RRange')[iBin]
     RSet    = np.linspace(0,RRange,Nr)
     RhoSet  = np.zeros(Nr)
     ZCDFSet = {}
@@ -172,7 +172,7 @@ def PreCompute(iBin, Model):
 if __name__=="__main__":
     
     import numpy as np
-    from utils import Besanscon_params, galaxy_params
+    from utils import Besancon_params, galaxy_params
 
     
     #Model parameters and options 
@@ -214,7 +214,7 @@ if __name__=="__main__":
         NormConstantsDF   = pd.read_csv('./Data/BesanconGalacticConstants.csv')
         NormConstantsDict = NormConstantsDF.to_dict(orient='list')
     except:
-        NormCSet = np.zeros(len(Besanscon_params('BinName')),dtype=float)
+        NormCSet = np.zeros(len(Besancon_params('BinName')),dtype=float)
         
         # Calculate volume integral for each Galactic component
         IntList = []
@@ -227,10 +227,10 @@ if __name__=="__main__":
         #The halo and bulge masses have been independently determined so treat them first
         #The masses are predefined in GalaxyParams
         #Halo mass:
-        IHalo            = np.where(Besanscon_params('BinName') == 'Halo')[0][0]
+        IHalo            = np.where(Besancon_params('BinName') == 'Halo')[0][0]
         NormCSet[IHalo]  = galaxy_params('MHalo') / IntList[IHalo]
         #Bulge mass:
-        IBulge           = np.where(Besanscon_params('BinName') == 'Bulge')[0][0]
+        IBulge           = np.where(Besancon_params('BinName') == 'Bulge')[0][0]
         NormCSet[IBulge] = (galaxy_params('MBulge') + galaxy_params('MBulge2')) / IntList[IBulge]
 
         #The thin and thick disk masses are determined by the solar density and total Galaxy mass
@@ -240,7 +240,7 @@ if __name__=="__main__":
         #First, get the non-weighted local densities
         RhoTildeSet      = np.array([RhoBesancon(galaxy_params('RGalSun'), galaxy_params('ZGalSun'), ii) for ii in range(8)],dtype=float)        
         #Then, get the weights so that the local densities are reproduced
-        NormSetPre       = Besanscon_params('BinName')[:8]/RhoTildeSet
+        NormSetPre       = Besancon_params('BinName')[:8]/RhoTildeSet
         #Then renormalise the whole thin/thick disc to match the Galactic stellar mass and finalise the weights
         NormCSet[:8]     = NormSetPre*(galaxy_params('MGal') - (galaxy_params('MBulge') + galaxy_params('MBulge2')) - galaxy_params('MHalo'))/np.sum(NormSetPre*IntList[:8])
         
