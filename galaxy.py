@@ -32,7 +32,7 @@ class Galaxy:
         if self.T0_dat_path is None:
             raise ValueError("T0 data path is not specified.")
         try:
-            self.T0_DWD_LISA = pop_create.get_possible_T0_LISA_sources(self.ModelParams, self.T0_dat_path, verbose=True)
+            self.T0_DWD_LISA = pop_create.get_possible_T0_LISA_sources(self.ModelParams, self.T0_dat_path, verbose=False)
         except Exception as e:
             raise IOError(f"Failed to load T0 data from {self.T0_dat_path}: {e}")
 
@@ -44,7 +44,7 @@ class Galaxy:
         
         try:
             # Assuming T0 data is in a format that can be read into a DataFrame
-            T0_DWD = pop_create.get_T0_DWDs(self.T0_dat_path, verbose=True)
+            T0_DWD = pop_create.get_T0_DWDs(self.T0_dat_path, verbose=False)
             return T0_DWD
         except Exception as e:
             raise IOError(f"Failed to load T0 data from {self.T0_dat_path}: {e}")
@@ -61,12 +61,13 @@ class Galaxy:
         self.N_DWD_Gx = pop_create.get_N_Gx_sample(self.T0_DWD_LISA, self.ModelParams)
 
     # Implement calculation of CDFs
-    def calculate_CDFs(self):
+    def calculate_CDFs(self, verbose=False):
         import h5py
         # Maybe also implement default CDF for project w/ Besancon model
         #Get the R-CDFs
         if self.ModelParams['RecalculateCDFs']: 
-            print("Calculating the CDFs!")
+            if verbose:
+                print("Calculating the CDFs!")
             from cdf_scripts import PreCompute, GetZCDF
             
             #Recalculate the r CDFs first:
@@ -76,14 +77,16 @@ class Galaxy:
         
             # Create an HDF5 file
             with h5py.File('./GalCache/BesanconRData.h5', 'w') as hdf5_file:
-                print('Caching R')
+                if verbose:
+                    print('Caching R')
                 for idx, data_dict in enumerate(ModelRCache):
                     # Create a group for each dictionary
                     group = hdf5_file.create_group(f'Rdict_{idx}')
                     # Store each list as a dataset within the group
                     for key, value in data_dict.items():
                         group.create_dataset(key, data=value, compression='gzip')
-            print('R Cache saved')
+            if verbose:
+                print('R Cache saved')
                         
             #Recalculate the z-CDFs:
             
@@ -93,7 +96,8 @@ class Galaxy:
             # Create another HDF5 file
             with h5py.File('./GalCache/BesanconRZData.h5', 'w') as hdf5_file:
                 for iBin in iBinSampleSet:
-                    print('Caching Bin ' + str(iBin+1))
+                    if verbose:
+                        print('Caching Bin ' + str(iBin+1))
                     # Create a group for each x value
                     x_group = hdf5_file.create_group(f'bin_{iBin+1}')
                     rSet    = ModelRCache[iBin]['MidRSet']
@@ -109,7 +113,8 @@ class Galaxy:
                         for key, value in data_dict.items():
                             y_group.create_dataset(key, data=value, compression='gzip')
         else:
-            print('Reclaculate CDFs is false')
+            if verbose:
+                print('Reclaculate CDFs is false')
             
 
         return None
@@ -121,16 +126,20 @@ class Galaxy:
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
         
+        # append Code to the galaxy write path
+        galaxy_write_path = write_path + f'/{self.ModelParams["Code"]}'
+
         # Calculate the number of DWDs in the Galaxy
         self.calculate_N_DWD_Gx()
 
         # Compute the Bezanscon CDFs if needed
         if self.ModelParams['RecalculateCDFs']:
             _ = self.calculate_CDFs()
-            print('CDFs calculated!')
+            if verbose:
+                print('CDFs calculated!')
         
         # Create the galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5)
         
         return None
     
@@ -139,13 +148,17 @@ class Galaxy:
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
         
+        # append Code to the galaxy write path
+        galaxy_write_path = write_path + f'/{self.ModelParams["Code"]}'
+        
         # Compute the Bezanscon CDFs if needed
         if self.ModelParams['RecalculateCDFs']:
-            _ = self.calculate_CDFs()
-            print('CDFs calculated!')
+            _ = self.calculate_CDFs(verbose=verbose)
+            if verbose:
+                print('CDFs calculated!')
         
         # Create the downsampled galaxy component DataFrame
-        _ = pop_create.create_downsampled_LISA_galaxy(self.T0_DWD_LISA, self.ModelParams['RepresentDWDsBy'], self.ModelParams, write_path, verbose=verbose, write_h5=write_h5)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.ModelParams['RepresentDWDsBy'], self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5)
         
         return None
 

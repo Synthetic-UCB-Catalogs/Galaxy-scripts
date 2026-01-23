@@ -737,14 +737,20 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
     gx_tot : DataFrame
         DataFrame containing the DWDs in the specified component with assigned ages.
     '''
-    import tqdm
+    if verbose:
+        import tqdm
 
     # Load the radial and vertical distribution parameters for the galaxy components
     ModelRCache = utils.load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5')
     ZCDFDictSet = utils.load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
 
-    print(f"Creating a Galaxy with {N_DWD_Gx} DWDs total. For verbose output, set verbose=True in create_galaxy function call.")
-    for ii, gx_component in enumerate(tqdm.tqdm(utils.Besancon_params('BinName'))):
+    if verbose:
+        print(f"Creating a Galaxy with {N_DWD_Gx} DWDs total. For verbose output, set verbose=True in create_galaxy function call.")
+    if verbose:
+        iterator = tqdm.tqdm(utils.Besancon_params('BinName'))
+    else:
+        iterator = utils.Besancon_params('BinName')
+    for ii, gx_component in enumerate(iterator):
         n_comp = N_DWD_Gx * utils.Besancon_params('BinMassFractions')[ii]
 
         # Can only sample an integer number of DWDs, so we take the integer part and add one

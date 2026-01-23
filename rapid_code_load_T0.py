@@ -57,7 +57,7 @@ def load_T0_data(ifilepath, code=None, **kwargs):
                            "NSYS": int(T0_info[6]), 
                            "NLINES": int(T0_info[7]),
                            "Z": float(T0_info[8].replace("\n",""))}
-    elif code == "SEVN":
+    elif code == "SEVN_MIST":
         metallicity = kwargs.pop('metallicity')
         col_standard = ["ID","UID","time","event","semiMajor","eccentricity",
                         "type1","mass1","radius1","Teff1","massHecore1",
