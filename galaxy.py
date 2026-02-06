@@ -148,6 +148,14 @@ class Galaxy:
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
         
+        # append Code to the galaxy write path
+        galaxy_write_path = write_path + f'/{self.ModelParams["Code"]}'
+
+        # Calculate the number of DWDs in the Galaxy
+        self.calculate_N_DWD_Gx()
+        self.N_DWD_Gx = int(self.N_DWD_Gx / self.ModelParams['RepresentDWDsBy'])  # Downsample the number of DWDs by the specified factor
+        if verbose:
+            print(f"Downsampling the number of DWDs in the Galaxy to {self.N_DWD_Gx} by representing each DWD with {self.ModelParams['RepresentDWDsBy']} binaries.")
         # Compute the Bezanscon CDFs if needed
         if self.ModelParams['RecalculateCDFs']:
             _ = self.calculate_CDFs(verbose=verbose)
@@ -155,7 +163,7 @@ class Galaxy:
                 print('CDFs calculated!')
         
         # Create the downsampled galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.ModelParams['RepresentDWDsBy'], self.ModelParams, write_path=write_path, verbose=verbose, write_h5=write_h5)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5)
         
         return None
 

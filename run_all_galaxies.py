@@ -71,7 +71,7 @@ def set_paths(ModelParams):
 
 
 
-def run_gx(RunWave, SubType, Code, datPath):
+def run_gx(RunWave, SubType, Code, datPath, run_full_galaxy=True, run_downsampled_galaxy=True):
     ModelParams = { #Main options
                    'GalaxyModel': 'Besancon', #Currently can only be Besancon
                    'RecalculateNormConstants': True, #If true, density normalisations are recalculated and printed out, else already existing versions are used
@@ -82,7 +82,7 @@ def run_gx(RunWave, SubType, Code, datPath):
                    'Code': Code,
                    'ACutRSunPre': 6., #Initial cut for all DWD binaries
                    'UseRepresentingWDs': True, #If False - each binary in the Galaxy is drawn as 1 to 1; if True - all the Galactic DWDs are represented by a smaller number, N, binaries
-                   'RepresentDWDsBy': 500_000,  #Represent the present-day LISA candidates by this nubmer of binaries
+                   'RepresentDWDsBy': 50,  #Downsample the present-day LISA candidates by this factor
                    'LISAPCutHours': (2/1.e-4)/(3600.), #LISA cut-off orbital period, 1.e-4 Hz + remember that GW frequency is 2X the orbital frequency
                    'MaxTDelay': 14000,
                    'DeltaTGalMyr': 50, #Time step resolution in the Galactic SFR
@@ -107,15 +107,24 @@ def run_gx(RunWave, SubType, Code, datPath):
     except ValueError as ve:
         print(f"ValueError: {ve}")
 
-    gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False)
-    if ModelParams['UseRepresentingWDs']:
-        gx.create_downsampled_galaxy(write_path=write_path_downsampled, verbose=False, write_h5=False)
+    if run_full_galaxy:
+        gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False)
+    if run_downsampled_galaxy:
+        if write_path_downsampled is not None:
+            gx.create_downsampled_galaxy(write_path=write_path_downsampled, verbose=False, write_h5=False)
+        else:
+            print('Skipping downsampled galaxy creation due to missing write path.')
+            print(f'check whether downsampled write path exists: {write_path_downsampled}')
+            print('')
+    if not run_full_galaxy and not run_downsampled_galaxy:
+        print('WARNING: neither full galaxy nor downsampled galaxy will be created since both run_full_galaxy and run_downsampled_galaxy are set to False.')    
+
 
     return None
 
 def _run(args_in):
-    RunWave, SubType, Code, datPath = args_in
-    return run_gx(RunWave, SubType, Code, datPath)
+    RunWave, SubType, Code, datPath, run_full_galaxy, run_downsampled_galaxy = args_in
+    return run_gx(RunWave, SubType, Code, datPath, run_full_galaxy, run_downsampled_galaxy)
 
 
 if __name__ == '__main__':
@@ -127,7 +136,10 @@ if __name__ == '__main__':
     parser.add_argument('--datPath', type=str, required=True, help='Base path to the data directory containing simulated binary populations.')
     args = parser.parse_args()
 
-    verbose=False
+    multi = True
+    verbose=True
+    run_full_galaxy = False
+    run_downsampled_galaxy = True
     RunWaves = ['initial_condition_variations', 'mass_transfer_variations']
     IC_subtypes = ['fiducial', 'thermal_ecc', 'uniform_ecc', 'm2_min_05', 'qmin_01', 'porb_log_uniform']
     MT_subtypes = ['alpha_lambda_1', 'alpha_lambda_2', 'alpha_lambda_02', 'alpha_lambda_05', 'alpha_gamma_2', 'qcrit_claeys_14',
@@ -136,12 +148,11 @@ if __name__ == '__main__':
     #               'qcrit_hurley_02', 'qcrit_hurley_webbink', 'qcrit_zetas', 'accretion_0', 'accretion_1', 'accretion_05']
     
     #codes = ['COSMIC', 'BSE', 'SEVN_MIST', 'BPASS', 'SeBa', 'COMPAS', 'METISSE']
-    codes = ['SEVN_MIST']
+    codes = ['BPASS']
     
     dat_path = Path(args.datPath) / 'simulated_binary_populations' / 'monte_carlo_comparisons'
     
     missing_paths = []
-
     args_in = []
     for RW, subtype in zip(RunWaves, [IC_subtypes, MT_subtypes]):
         for s in subtype:
@@ -170,13 +181,21 @@ if __name__ == '__main__':
                 else:
                     if verbose:
                         print(f'loading data from {path}')
-                args_in.append((RW, s, c, args.datPath))
+                if verbose:
+                    if run_full_galaxy:
+                        print(f'will run full galaxy for {RW}, {s}, {c}')
+                    if run_downsampled_galaxy:
+                        print(f'will run downsampled galaxy for {RW}, {s}, {c}')
+                args_in.append((RW, s, c, args.datPath, run_full_galaxy, run_downsampled_galaxy))
 
-    with Pool(cpu_count()) as pool:
-        for _ in tqdm(
-            pool.imap_unordered(_run, args_in),
-            total=len(args_in),
-        ):
-            pass
-    
+    if multi:
+        with Pool(cpu_count()) as pool:
+            for _ in tqdm(
+                pool.imap_unordered(_run, args_in),
+                total=len(args_in),
+            ):
+                pass
+    else:
+        for arg in tqdm(args_in):
+            _run(arg)
     print('All done!')

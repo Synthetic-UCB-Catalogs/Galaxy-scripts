@@ -294,6 +294,11 @@ def get_N_Gx_sample(T0_DWD_LISA, ModelParams):
         #use fiducial mass norm for all mass transfer variations
     gx_to_sim_mass = utils.galaxy_params('MGal')/mass_norm
     
+    if ModelParams['Code'] == 'BPASS':
+        #BPASS models have a different mass normalization, 
+        #so we need to adjust the gx_to_sim_mass accordingly
+        gx_to_sim_mass = gx_to_sim_mass * 20.9966
+
     N_DWD_Gx = len(T0_DWD_LISA) * gx_to_sim_mass
     N_DWD_Gx = int(N_DWD_Gx) + (np.random.uniform() < (N_DWD_Gx % 1))
     
