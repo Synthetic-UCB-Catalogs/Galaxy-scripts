@@ -83,7 +83,7 @@ def load_T0_data(ifilepath, code=None, **kwargs):
     elif code == "BPASS":
         metallicity = 0.02
         #read in the data with the columns
-        dat = pd.read_csv(ifilepath, sep=' ', skiprows=2)
+        dat = pd.read_csv(ifilepath, sep='\s+', skiprows=2, skip_blank_lines=True)
         
         #read in the T0 info in the header
         lines_number = 2
