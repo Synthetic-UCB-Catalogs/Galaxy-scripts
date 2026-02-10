@@ -28,7 +28,7 @@ ModelParams = { #Main options
                #'Code': 'COMPAS',
                #Simulation parameters
                'ACutRSunPre': 6., #Initial cut for all DWD binaries
-               'UseRepresentingWDs': True, #If False - each binary in the Galaxy is drawn as 1 to 1; if True - all the Galactic DWDs are represented by a smaller number, N, binaries
+               'UseRepresentingWDs': False, #If False - each binary in the Galaxy is drawn as 1 to 1; if True - all the Galactic DWDs are represented by a smaller number, N, binaries
                'RepresentDWDsBy': 500000,  #Represent the present-day LISA candidates by this nubmer of binaries
                'LISAPCutHours': (2/1.e-4)/(3600.), #LISA cut-off orbital period, 1.e-4 Hz + remember that GW frequency is 2X the orbital frequency
                'MaxTDelay': 14000,
@@ -75,7 +75,8 @@ if __name__ == '__main__':
         if var_name == 'fiducial':
             var_string = var_name
         elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
-            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05':
+            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05' or \
+            var_name == 'alpha_gamma_2':
                 var_string = 'common_envelope/' + var_name
         elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
             or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
