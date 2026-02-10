@@ -149,7 +149,7 @@ class Galaxy:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
         
         # append Code to the galaxy write path
-        galaxy_write_path = write_path + f'/{self.ModelParams["Code"]}'
+        galaxy_write_path = write_path
 
         # Calculate the number of DWDs in the Galaxy
         self.calculate_N_DWD_Gx()
