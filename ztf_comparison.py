@@ -16,7 +16,8 @@ def wd_radius_PPE(m):
     # 3/2 multiplier from van Zeist et al. (2025)
     
     if m > 1.44:
-        raise ValueError('WD with mass above 1.44 Msun encountered.')
+        raise ValueError('WD with mass above 1.44 Msun encountered during ' +
+                         'radius calculation.')
     
     
     fac1 = (m/1.44)**(2./3.)
@@ -142,10 +143,12 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
     
     iteration_no = 0 #counter to keep track of progress
     iteration_kept = 0 #only those iterations kept within the distance limit
+    header_row_flag = True #handle header row separately
     
     for line in galaxy_file:
-        if iteration_no == 0: #skip first row of file (headers)
-            iteration_no += 1
+        if header_row_flag == True: #skip first row of file (headers)
+            #to do something with the header row, put it here
+            header_row_flag = False
             continue
         
         line_as_list = list(line.split(','))
@@ -192,7 +195,7 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
         
     galaxy_file.close()
     
-    print(iteration_no - 1) #-1 because first row skipped
+    print(iteration_no)
     print(iteration_kept)
     print(sum(sum(amount_per_bin)))
     
