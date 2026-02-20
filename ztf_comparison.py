@@ -15,6 +15,9 @@ def wd_radius_PPE(m):
     # ZS for low m. From Verbunt & Rappaport (1988)
     # 3/2 multiplier from van Zeist et al. (2025)
     
+    if m > 1.44:
+        raise ValueError('WD with mass above 1.44 Msun encountered.')
+    
     
     fac1 = (m/1.44)**(2./3.)
     fac2 = 0.00057/m
@@ -93,6 +96,8 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
     amount_per_bin = np.zeros((50,40)) #zeros, not empty
     #50,40 instead of 51,41 because each bin is *between* the bounds from the lists above
     
+    
+    
     """ Fetching the right AllDWDs file """
     
     if var_type == 'icv' or var_type == 'initial_condition_variations':
@@ -128,7 +133,9 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
             'monte_carlo_comparisons/' + var_type_string
     all_dwd_filepath = initial_string + var_string + '/' + code_name + \
         '_Galaxy_AllDWDs.csv'
-        
+    
+    
+    
     """ Running through the galaxy file """
     
     galaxy_file = open(all_dwd_filepath,'r')
