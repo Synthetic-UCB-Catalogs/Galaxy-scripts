@@ -20,3 +20,4 @@ GalaxyParams = {'MGal': 6.43e10, #From Licquia and Newman 2015
 
 
 #3D components of the Sun’s velocity (U ; V ;W ) =(12:9; 245:6; 7:78) km s^1 (Drimmel & Poggio 2018)
+

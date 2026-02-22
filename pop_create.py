@@ -390,13 +390,13 @@ def filter_possible_LISA_sources(gx_component_df):
 
     # filter based on the semimajor axis that is within the LISA band
     a_LISA_hi = lw.utils.get_a_from_f_orb(
-        f_orb=1e-1 * u.Hz, 
+        f_orb=0.5*1e-1 * u.Hz, 
         m_1=gx_component_df['mass1'].values * u.Msun, 
         m_2=gx_component_df['mass2'].values * u.Msun
     ).to(u.Rsun).value
 
     a_LISA_lo = lw.utils.get_a_from_f_orb(
-        f_orb=1e-4 * u.Hz, 
+        f_orb=0.5*1e-4 * u.Hz, 
         m_1=gx_component_df['mass1'].values * u.Msun, 
         m_2=gx_component_df['mass2'].values * u.Msun
     ).to(u.Rsun).value

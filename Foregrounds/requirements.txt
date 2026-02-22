@@ -1,0 +1,20 @@
+# general
+numpy
+pandas
+matplotlib
+PyYAML
+astropy
+
+# waveform generation
+gbgpu
+lisatools
+
+# gwg dependencies
+gwg
+h5py
+tqdm
+xarray
+statsmodels
+pyfftw
+pytables
+# whittaker-eilers # optional for smoothing
