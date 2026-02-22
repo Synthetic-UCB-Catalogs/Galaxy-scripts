@@ -122,7 +122,7 @@ def get_a_RLO(T0_DWD):
     T0_DWD['q_rlo'] = np.minimum(T0_DWD['mass1'], T0_DWD['mass2']) / np.maximum(T0_DWD['mass1'], T0_DWD['mass2'])
 
     # Calculate the Roche lobe radius in RSun
-    T0_DWD['a_rlo'] = frac_RL(T0_DWD['q_rlo'].values) * T0_DWD['semiMajor'].values
+    T0_DWD['a_rlo'] = T0_DWD['R_don'].values / frac_RL(T0_DWD['q_rlo'].values)
 
     return T0_DWD
 
@@ -142,7 +142,7 @@ def get_a_LISA(T0_DWD, f_LISA_low=1e-4):
     '''
     # Calculate the semimajor axis at the lower bound of LISA sensitivity frequency
     T0_DWD['a_LISA'] = lw.utils.get_a_from_f_orb(
-        f_orb=f_LISA_low * u.Hz, 
+        f_orb=0.5*f_LISA_low * u.Hz, 
         m_1=T0_DWD.mass1.values * u.Msun, 
         m_2=T0_DWD.mass2.values * u.Msun
     ).to(u.Rsun).value
@@ -163,7 +163,6 @@ def get_GW_timescales(T0_DWD):
     T0_DWD : DataFrame
         DataFrame with GW inspiral timescales added for each DWD.
     '''
-    
     # Calculate the time to merger from DWD formation
     T0_DWD['t_merge_gw'] = lw.evol.get_t_merge_circ(
         m_1=T0_DWD['mass1'].values * u.Msun, 
@@ -186,15 +185,18 @@ def get_GW_timescales(T0_DWD):
         ).to(u.Myr).value
     
     # Calcalate the time to get to the LISA band from formation
-    T0_DWD['t_to_LISA'] = T0_DWD['time'] + (T0_DWD['t_merge_gw'] - T0_DWD['t_merge_lisa']).clip(lower=0)
+    t_LISA = np.zeros_like(T0_DWD['t_merge_gw'].values)
+    LISA_band_mask = T0_DWD['t_merge_gw'] > T0_DWD['t_merge_lisa']
+    t_LISA[LISA_band_mask] = T0_DWD['t_merge_gw'][LISA_band_mask].values - T0_DWD['t_merge_lisa'][LISA_band_mask].values
+    T0_DWD['t_to_LISA'] = T0_DWD['time'] + t_LISA
 
     # Calculate the time to get to Roche lobe overflow from bottom of LISA band
-    T0_DWD['t_LISA_max'] = T0_DWD['time'] + (T0_DWD['t_merge_gw'] - T0_DWD['t_merge_rlo']).clip(lower=0)
+    T0_DWD['t_LISA_max'] = T0_DWD['time'] + (T0_DWD['t_merge_gw'] - T0_DWD['t_merge_rlo'])
     
     return T0_DWD
 
 
-def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=False):
+def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=True):
     '''Calculates the properties of the DWDs based on the T0 data.
     
     Parameters
@@ -211,9 +213,10 @@ def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=False):
     T0_DWD : DataFrame
         DataFrame with calculated properties for each DWD.
     '''
-    
+
     # get the semimajor axis at Roche lobe overflow
     T0_DWD = get_a_RLO(T0_DWD)
+    T0_DWD = T0_DWD.loc[T0_DWD['semiMajor'] > T0_DWD['a_rlo']].copy() # filter out DWDs that are already in Roche lobe overflow at T0
 
     # get the semimajor axis at the lower bound of LISA frequency
     T0_DWD = get_a_LISA(T0_DWD)
@@ -222,7 +225,7 @@ def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=False):
     T0_DWD = get_GW_timescales(T0_DWD)
 
     # filter based on sources that don't make it to LISA band before max age
-    T0_DWD = T0_DWD.loc[T0_DWD['t_to_LISA'] < ModelParams['MaxTDelay']]
+    T0_DWD = T0_DWD.loc[(T0_DWD['t_to_LISA'] < ModelParams['MaxTDelay'])]
 
     if verbose:
         print(f"Filtered DWDs to {len(T0_DWD)} that will evolve to LISA band before {ModelParams['MaxTDelay']} Myr.")
@@ -266,7 +269,7 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
     # Calculate orbital properties and GW evolution timescales based on the T0 WDs
     # This will also filter out DWDs that will not evolve to the LISA band before 
     # the maximum age specified in ModelParams['MaxTDelay']
-    T0_DWD_LISA = filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=verbose)
+    T0_DWD_LISA = filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=True)
     if T0_DWD_LISA.empty:
         raise ValueError("No DWDs found that will evolve to the LISA band before the maximum age. Check the input parameters or T0 data file.")
 
