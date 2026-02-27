@@ -56,7 +56,7 @@ def get_f_gw_from_semimajor(m1, m2, a):
     return 2*f_orb
 
 def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
-                            recalc_rad=True, ecl_weight=True):
+                            ecl_weight=True, recalc_rad=True):
     """
     Sorts the galaxy data into frequency/distance bins for the plotting code
     to use.
@@ -78,11 +78,11 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
     rclone_flag: bool
         Whether you have set up rclone for the filepaths in the Google Drive or
         not.
+    ecl_weight: bool
+        If True, weight systems by their eclipse probability when binning them.
     recalc_rad: bool
         If True, calculate radii based on the wd_radius_PPE() formula. If
         False, use whatever radii are provided in the galaxy file.
-    ecl_weight: bool
-        If True, weight systems by their eclipse probability when binning them.
     """
     
     """ Initialisation """
@@ -165,18 +165,19 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
         m2 = float(line_as_list[12]) #Msun
         a = float(line_as_list[4]) #Rsun
         
-        if recalc_rad == True:
-            r1 = wd_radius_PPE(m1) #Rsun
-            r2 = wd_radius_PPE(m2) #Rsun
-        else:
-            r1 = float(line_as_list[8]) #Rsun
-            r2 = float(line_as_list[13]) #Rsun
         
         freq = get_f_gw_from_semimajor(m1,m2,a) #Hz
         freq_bin = np.floor(10*np.log10(freq)) + 50
         #rounds to nearest 0.1, then adds 50 to map -5.0 (-50) to index 0
         
         if ecl_weight == True:
+            if recalc_rad == True:
+                r1 = wd_radius_PPE(m1) #Rsun
+                r2 = wd_radius_PPE(m2) #Rsun
+            else:
+                r1 = float(line_as_list[8]) #Rsun
+                r2 = float(line_as_list[13]) #Rsun
+            
             system_weight = (r1 + r2)/a #eclipse probability; a and r in Rsun
         else:
             system_weight = 1
@@ -195,8 +196,9 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
         
     galaxy_file.close()
     
-    print(iteration_no)
-    print(iteration_kept)
-    print(sum(sum(amount_per_bin)))
+    print('Total DWDs in galaxy file: ' + str(iteration_no))
+    print('DWDs within distance limit: ' + str(iteration_kept))
+    print('DWDs kept with eclipse prob. (should be same as above if ' +
+          'ecl_weight=False): ' + str(int(sum(sum(amount_per_bin)))))
     
-    return amount_per_bin
+    return amount_per_bin, log_freq_bin_bounds, dist_bin_bounds
