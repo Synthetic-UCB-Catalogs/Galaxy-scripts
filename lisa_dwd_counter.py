@@ -41,7 +41,8 @@ def dwd_count_single_code(code_name, var_type, var_name, rclone_flag=True):
         if var_name == 'fiducial':
             var_string = var_name
         elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
-            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05':
+            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05' or \
+            var_name == 'alpha_gamma_2':
                 var_string = 'common_envelope/' + var_name
         elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
             or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
@@ -189,7 +190,8 @@ def all_dwd_single_code(code_name, var_type, var_name, rclone_flag=True):
         if var_name == 'fiducial':
             var_string = var_name
         elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
-            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05':
+            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05' or \
+            var_name == 'alpha_gamma_2':
                 var_string = 'common_envelope/' + var_name
         elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
             or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
