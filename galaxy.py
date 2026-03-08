@@ -65,7 +65,7 @@ class Galaxy:
         import h5py
         # Maybe also implement default CDF for project w/ Besancon model
         #Get the R-CDFs
-        if self.ModelParams['RecalculateCDFs']: 
+        if self.ModelParams['recalculate_cdfs']: 
             if verbose:
                 print("Calculating the CDFs!")
             from cdf_scripts import PreCompute, GetZCDF
@@ -121,7 +121,7 @@ class Galaxy:
     
 
     # Create Galaxy
-    def create_galaxy(self, write_path=None, verbose=False, write_h5=False):
+    def create_galaxy(self, write_path=None, verbose=False, write_h5=False, midpoint=False):
         """Creates a DataFrame containing present-day DWDs in the Galaxy."""
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
@@ -133,17 +133,17 @@ class Galaxy:
         self.calculate_N_DWD_Gx()
 
         # Compute the Bezanscon CDFs if needed
-        if self.ModelParams['RecalculateCDFs']:
-            _ = self.calculate_CDFs()
+        if self.ModelParams['recalculate_cdfs']:
+            _ = self.calculate_CDFs(verbose=verbose)
             if verbose:
                 print('CDFs calculated!')
         
         # Create the galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5, midpoint=midpoint)
         
         return None
     
-    def create_downsampled_galaxy(self, write_path=None, verbose=False, write_h5=False):
+    def create_downsampled_galaxy(self, write_path=None, verbose=False, write_h5=False, midpoint=False):
         """Creates a downsampled DataFrame containing present-day DWDs in the Galaxy."""
         if self.T0_DWD_LISA is None:
             raise ValueError("T0 DWD data is not loaded or does not contain 'DWD' column. Please load and filter the LISA-specific T0 data first.")
@@ -153,17 +153,17 @@ class Galaxy:
 
         # Calculate the number of DWDs in the Galaxy
         self.calculate_N_DWD_Gx()
-        self.N_DWD_Gx = int(self.N_DWD_Gx / self.ModelParams['RepresentDWDsBy'])  # Downsample the number of DWDs by the specified factor
+        self.N_DWD_Gx = int(self.N_DWD_Gx / self.ModelParams['downsample_fac'])  # Downsample the number of DWDs by the specified factor
         if verbose:
-            print(f"Downsampling the number of DWDs in the Galaxy to {self.N_DWD_Gx} by representing each DWD with {self.ModelParams['RepresentDWDsBy']} binaries.")
+            print(f"Downsampling the number of DWDs in the Galaxy to {self.N_DWD_Gx} by a factor of {self.ModelParams['downsample_fac']}.")
         # Compute the Bezanscon CDFs if needed
-        if self.ModelParams['RecalculateCDFs']:
+        if self.ModelParams['recalculate_cdfs']:
             _ = self.calculate_CDFs(verbose=verbose)
             if verbose:
                 print('CDFs calculated!')
         
         # Create the downsampled galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5)
+        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5, midpoint=midpoint)
         
         return None
 

@@ -215,3 +215,78 @@ def load_Rdicts_from_hdf5(file_path):
         ModelRCache.append(Dict)    
 
     return ModelRCache
+
+
+def set_paths(ModelParams):
+    '''Configure file paths based on ModelParams settings.
+    
+    Parameters:
+    -----------
+    ModelParams : dict
+        Dictionary containing model parameters including 'run_wave', 'run_sub_type', 'code'
+        
+    Returns:
+    --------
+    T0_dat_path : str
+        File path to the T0 data file.
+    write_path : str
+        Partial file path to save the Galaxy DataFrame.
+    write_path_downsampled : str
+        Partial file path to save the downsampled Galaxy DataFrame (if applicable).
+    '''
+
+    from pathlib import Path
+
+    if ModelParams['run_wave'] == 'initial_condition_variations':
+        if ModelParams['code'] == 'SEVN_MIST':
+            T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code'] + '_T0.csv'  # FilePath to the T0 data file
+        elif ModelParams['code'] == 'BPASS':
+            T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code'] + '_T0.csv'  # FilePath to the T0 data file
+        else:
+            T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code'] + '_T0.hdf5'  # FilePath to the T0 data file
+
+        if ModelParams['create_downsampled_gx'] == True:
+            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code']    # Partial Filepath save the Galaxy DataFrame
+        else:
+            write_path_downsampled = None
+        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+
+    elif ModelParams['run_wave'] == 'mass_transfer_variations':
+        var_name = ModelParams['run_sub_type']
+        if var_name == 'fiducial':
+            var_string = var_name
+        elif var_name == 'alpha_lambda_1' or var_name == 'alpha_lambda_2' or \
+            var_name == 'alpha_lambda_02' or var_name == 'alpha_lambda_05' or \
+            var_name == 'alpha_gamma_2':
+                var_string = 'common_envelope/' + var_name
+        elif var_name == 'qcrit_claeys_14' or var_name == 'qcrit_hurley_02' \
+            or var_name == 'qcrit_hurley_webbink' or var_name == 'qcrit_zetas':
+                var_string = 'stability_of_mass_transfer/' + var_name
+        elif var_name == 'accretion_0' or var_name == 'accretion_1' or \
+            var_name == 'accretion_05':
+                var_string = 'stable_accretion_efficiency/' + var_name
+        else:
+            raise ValueError('Invalid mass transfer variation specified in run_sub_type.')
+
+        if ModelParams['code'] == 'SEVN_MIST':
+            T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code'] + '_T0.csv'  # FilePath to the T0 data file
+        elif ModelParams['code'] == 'BPASS':
+            T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code'] + '_T0.csv'  # FilePath to the T0 data file
+        else:
+            T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code'] + '_T0.hdf5'  # FilePath to the T0 data file
+
+        if ModelParams['create_downsampled_gx'] == True:
+            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+        else:
+            write_path_downsampled = None
+        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+    else:
+        raise ValueError('Invalid run_wave specified.')
+    if not Path(write_path).exists():
+        print(f'WARNING: write path does not exist: {write_path}')
+
+    if not Path(T0_dat_path).exists():
+        print(f'WARNING: T0 path does not exist: {T0_dat_path}')
+        return None, None, None
+    
+    return T0_dat_path, write_path, write_path_downsampled

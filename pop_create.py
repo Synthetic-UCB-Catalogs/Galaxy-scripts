@@ -23,10 +23,10 @@ def get_R_WD(M_WD):
     from scipy.interpolate import UnivariateSpline
     import os
 
-    CodeDir = os.path.dirname(os.path.abspath(__file__))
+    codeDir = os.path.dirname(os.path.abspath(__file__))
 
     # Load the mass-radius data for white dwarfs
-    M_WD_dat, R_WD_dat = np.split(np.loadtxt(CodeDir + '/WDData/MRRel.dat'),2,axis=1)
+    M_WD_dat, R_WD_dat = np.split(np.loadtxt(codeDir + '/WDData/MRRel.dat'),2,axis=1)
     M_WD_dat = M_WD_dat.flatten()
     R_WD_dat = R_WD_dat.flatten()
 
@@ -59,7 +59,7 @@ def get_T0_DWDs(ModelParams, T0_dat_path, verbose=False):
     Parameters
     ----------
     ModelParams : dict
-        Dictionary containing model parameters including 'RunSubType'.
+        Dictionary containing model parameters including 'run_sub_type'.
     T0_dat_path : str
         Path to the T0 data file.
     verbose : bool, optional
@@ -75,26 +75,26 @@ def get_T0_DWDs(ModelParams, T0_dat_path, verbose=False):
     # folder in the Google Drive download; the header of the T0
     # data file is saved in _ that is returned by the load_T0_data
     # function
-    T0_data, _ = load_T0_data(T0_dat_path, code=ModelParams['Code'], metallicity=0.02)
+    T0_data, _ = load_T0_data(T0_dat_path, code=ModelParams['code'], metallicity=0.02)
     
     if verbose:
-        print(f"Loaded T0 data with {len(T0_data)} entries for the {ModelParams['Code']} {ModelParams['RunWave']} {ModelParams['RunSubType']} run.")
+        print(f"Loaded T0 data with {len(T0_data)} entries for the {ModelParams['code']} {ModelParams['run_wave']} {ModelParams['run_sub_type']} run.")
 
-    # Handle the DWD selection based on the Code in ModelParams
+    # Handle the DWD selection based on the code in ModelParams
     # and apply a semimajor axis cut as specified in ModelParams
-    if ModelParams['Code'] == 'ComBinE':
+    if ModelParams['code'] == 'ComBinE':
         T0_DWD =  T0_data.loc[
             (T0_data.type1 == 2) & (T0_data.type2 == 2) & 
-            (T0_data.semiMajor > 0) & (T0_data.semiMajor < ModelParams['ACutRSunPre'])
+            (T0_data.semiMajor > 0) & (T0_data.semiMajor < ModelParams['semiMajor_max'])
             ].groupby('ID', as_index=False).first()
     else:
         T0_DWD = T0_data.loc[
             (T0_data.type1.isin([21,22,23])) & (T0_data.type2.isin([21,22,23])) & 
-            (T0_data.semiMajor > 0) & (T0_data.semiMajor < ModelParams['ACutRSunPre'])
+            (T0_data.semiMajor > 0) & (T0_data.semiMajor < ModelParams['semiMajor_max'])
             ].groupby('ID', as_index=False).first() 
         
     if verbose: 
-        print(f"Found {len(T0_DWD)} DWDs in T0 data with semimajor axis < {ModelParams['ACutRSunPre']} RSun.")
+        print(f"Found {len(T0_DWD)} DWDs in T0 data with semimajor axis < {ModelParams['semiMajor_max']} RSun.")
             
     return T0_DWD
 
@@ -109,22 +109,22 @@ def get_a_RLO(T0_DWD):
 
     Returns
     -------
-    T0_DWD : DataFrame
-        DataFrame with Roche lobe radius added for each DWD.
+    a_rlo : array-like
+        Array containing the semimajor axis at Roche overflow for each DWD.
     '''
     
     # First determine the separation where the donor fills its Roche lobe
     # Calculate the radius of the least massive WD 
     # [this will be the donor at mass transfer]
-    T0_DWD['R_don'] = get_R_WD(np.minimum(T0_DWD['mass1'].values,T0_DWD['mass2'].values))
+    r_don = get_R_WD(np.minimum(T0_DWD['mass1'].values,T0_DWD['mass2'].values))
 
     # Calculate the mass ratio where q = don/acc
-    T0_DWD['q_rlo'] = np.minimum(T0_DWD['mass1'], T0_DWD['mass2']) / np.maximum(T0_DWD['mass1'], T0_DWD['mass2'])
+    q_rlo = np.minimum(T0_DWD['mass1'], T0_DWD['mass2']) / np.maximum(T0_DWD['mass1'], T0_DWD['mass2'])
 
     # Calculate the Roche lobe radius in RSun
-    T0_DWD['a_rlo'] = T0_DWD['R_don'].values / frac_RL(T0_DWD['q_rlo'].values)
+    a_rlo = r_don / frac_RL(q_rlo)
 
-    return T0_DWD
+    return a_rlo
 
 
 def get_a_LISA(T0_DWD, f_LISA_low=1e-4): 
@@ -137,17 +137,17 @@ def get_a_LISA(T0_DWD, f_LISA_low=1e-4):
         
     Returns
     -------
-    T0_DWD : DataFrame
-        DataFrame with LISA semimajor axis added for each DWD.
+    a_LISA : array-like
+        Array containing the semimajor axis at the lower bound of LISA frequency for each DWD.
     '''
     # Calculate the semimajor axis at the lower bound of LISA sensitivity frequency
-    T0_DWD['a_LISA'] = lw.utils.get_a_from_f_orb(
+    a_LISA = lw.utils.get_a_from_f_orb(
         f_orb=0.5*f_LISA_low * u.Hz, 
         m_1=T0_DWD.mass1.values * u.Msun, 
         m_2=T0_DWD.mass2.values * u.Msun
     ).to(u.Rsun).value
     
-    return T0_DWD
+    return a_LISA
 
 
 def get_GW_timescales(T0_DWD):
@@ -160,40 +160,51 @@ def get_GW_timescales(T0_DWD):
 
     Returns
     -------
-    T0_DWD : DataFrame
-        DataFrame with GW inspiral timescales added for each DWD.
+    t_to_LISA : array-like
+        Array containing the time to get to the LISA band from formation for each DWD.
     '''
     # Calculate the time to merger from DWD formation
-    T0_DWD['t_merge_gw'] = lw.evol.get_t_merge_circ(
+    t_merge_gw = lw.evol.get_t_merge_circ(
         m_1=T0_DWD['mass1'].values * u.Msun, 
         m_2=T0_DWD['mass2'].values * u.Msun, 
         a_i=T0_DWD['semiMajor'].values * u.Rsun
         ).to(u.Myr).value
     
     # Calculate the time to merger from the Roche lobe overflow
-    T0_DWD['t_merge_rlo'] = lw.evol.get_t_merge_circ(
+    t_merge_rlo = lw.evol.get_t_merge_circ(
         m_1=T0_DWD['mass1'].values * u.Msun, 
         m_2=T0_DWD['mass2'].values * u.Msun, 
         a_i=T0_DWD['a_rlo'].values * u.Rsun
         ).to(u.Myr).value
     
-    # Calculate the time to merger from the LISA semimajor axis
-    T0_DWD['t_merge_lisa'] = lw.evol.get_t_merge_circ(
+    # Calculate the time to merger from the lower bound of the LISA band
+    t_merge_LISA = lw.evol.get_t_merge_circ(
         m_1=T0_DWD['mass1'].values * u.Msun, 
         m_2=T0_DWD['mass2'].values * u.Msun, 
         a_i=T0_DWD['a_LISA'].values * u.Rsun
         ).to(u.Myr).value
     
     # Calcalate the time to get to the LISA band from formation
-    t_LISA = np.zeros_like(T0_DWD['t_merge_gw'].values)
-    LISA_band_mask = T0_DWD['t_merge_gw'] > T0_DWD['t_merge_lisa']
-    t_LISA[LISA_band_mask] = T0_DWD['t_merge_gw'][LISA_band_mask].values - T0_DWD['t_merge_lisa'][LISA_band_mask].values
-    T0_DWD['t_to_LISA'] = T0_DWD['time'] + t_LISA
+    t_to_LISA = np.zeros_like(t_merge_gw)
+    # for DWDs that form in the LISA band, the time to get to the LISA band is 0
 
-    # Calculate the time to get to Roche lobe overflow from bottom of LISA band
-    T0_DWD['t_LISA_max'] = T0_DWD['time'] + (T0_DWD['t_merge_gw'] - T0_DWD['t_merge_rlo'])
+    # for DWDs that form with frequencies below the LISA band, the GW merger 
+    # timescale is larger than the time to merge from the bottom of the LISA band, 
+    # so the time to get to the LISA band is the difference between these two timescales
+    below_LISA_band_mask = t_merge_gw > t_merge_LISA
+    t_to_LISA[below_LISA_band_mask] = t_merge_gw[below_LISA_band_mask] - t_merge_LISA[below_LISA_band_mask]
     
-    return T0_DWD
+    # add time to formation to get the absolute time to get to the LISA band
+    t_to_LISA += T0_DWD['time'].values
+
+    # Calculate the time to get to Roche lobe overflow from the formation of the DWD
+    # this is just the difference between the time to merge from formation and the time to merge from Roche lobe overflow
+    t_LISA_max = t_merge_gw - t_merge_rlo
+
+    # add time to formation to get the absolute time to get to Roche lobe overflow
+    t_LISA_max += T0_DWD['time'].values
+    
+    return t_to_LISA, t_LISA_max
 
 
 def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=True):
@@ -204,7 +215,7 @@ def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=True):
     T0_DWD : DataFrame
         DataFrame containing the T0 data for DWDs.
     ModelParams : dict
-        Dictionary containing model parameters including 'MaxTDelay'.
+        Dictionary containing model parameters including 'age_max'.
     verbose : bool, optional
         If True, prints additional information during processing. Default is False.
 
@@ -215,20 +226,22 @@ def filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=True):
     '''
 
     # get the semimajor axis at Roche lobe overflow
-    T0_DWD = get_a_RLO(T0_DWD)
+    T0_DWD['a_rlo'] = get_a_RLO(T0_DWD)
     T0_DWD = T0_DWD.loc[T0_DWD['semiMajor'] > T0_DWD['a_rlo']].copy() # filter out DWDs that are already in Roche lobe overflow at T0
 
     # get the semimajor axis at the lower bound of LISA frequency
-    T0_DWD = get_a_LISA(T0_DWD)
+    T0_DWD['a_LISA'] = get_a_LISA(T0_DWD)
 
     # get the GW inspiral timescales
-    T0_DWD = get_GW_timescales(T0_DWD)
+    T0_DWD['t_to_LISA'], T0_DWD['t_LISA_max'] = get_GW_timescales(T0_DWD)
 
     # filter based on sources that don't make it to LISA band before max age
-    T0_DWD = T0_DWD.loc[(T0_DWD['t_to_LISA'] < ModelParams['MaxTDelay'])]
+    # since the t_to_LISA is the time to get to the LISA band from formation, 
+    # we need to add the time of formation to get the absolute time to get to the LISA band
+    T0_DWD = T0_DWD.loc[(T0_DWD['t_to_LISA'] < ModelParams['age_max'])]
 
     if verbose:
-        print(f"Filtered DWDs to {len(T0_DWD)} that will evolve to LISA band before {ModelParams['MaxTDelay']} Myr.")
+        print(f"Filtered DWDs to {len(T0_DWD)} that will evolve to LISA band before {ModelParams['age_max']} Myr.")
 
     return T0_DWD
 
@@ -241,7 +254,7 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
     Parameters
     ----------
     ModelParams : dict
-        Dictionary containing model parameters including 'RunSubType' and 'MaxTDelay'.
+        Dictionary containing model parameters including 'run_sub_type' and 'age_max'.
     T0_dat_path : str
         Path to the T0 data file.
     verbose : bool, optional
@@ -253,12 +266,6 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
         DataFrame containing the T0 data for DWDs that are likely LISA sources.
     '''
 
-    # I think we want to move this outside
-    # Based on the model parameters, determine the mass that was initialized for the T0 data
-    # and the effective number of DWDs in the Galaxy per simulated DWD based on the mass
-    #MassNorm        = get_mass_norm(ModelParams['RunSubType'])
-    #NStarsPerRun    = GalaxyParams['MGal']/MassNorm
-
     # Get the T0 data for DWDs
     # Note that the path should be the path to 
     # 'data_products' directory in the Google Drive from rclone
@@ -268,10 +275,13 @@ def get_possible_T0_LISA_sources(ModelParams, T0_dat_path, verbose=False):
 
     # Calculate orbital properties and GW evolution timescales based on the T0 WDs
     # This will also filter out DWDs that will not evolve to the LISA band before 
-    # the maximum age specified in ModelParams['MaxTDelay']
+    # the maximum age specified in ModelParams['age_max']
     T0_DWD_LISA = filter_for_potential_LISA_sources(T0_DWD, ModelParams, verbose=True)
     if T0_DWD_LISA.empty:
         raise ValueError("No DWDs found that will evolve to the LISA band before the maximum age. Check the input parameters or T0 data file.")
+
+    # clear the original T0_DWD DataFrame to save memory
+    del T0_DWD
 
     return T0_DWD_LISA
 
@@ -283,61 +293,60 @@ def get_N_Gx_sample(T0_DWD_LISA, ModelParams):
     T0_DWD_LISA : DataFrame
         DataFrame containing the T0 data for DWDs that are likely LISA sources.
     ModelParams : dict
-        Dictionary containing model parameters including 'RunSubType'.
+        Dictionary containing model parameters including 'run_sub_type'.
     
     Returns
     -------
     N_DWD_Gx : int
         Number of DWDs in the Galaxy.
     '''
-    if ModelParams['RunWave'] == 'initial_condition_variations':
-        mass_norm  = utils.get_mass_norm(IC_model=ModelParams['RunSubType'], binary_fraction=0.5)
-    elif ModelParams['RunWave'] == 'mass_transfer_variations':
+    if ModelParams['run_wave'] == 'initial_condition_variations':
+        mass_norm  = utils.get_mass_norm(IC_model=ModelParams['run_sub_type'], binary_fraction=0.5)
+    elif ModelParams['run_wave'] == 'mass_transfer_variations':
         mass_norm  = utils.get_mass_norm(IC_model='fiducial', binary_fraction=0.5)
         #use fiducial mass norm for all mass transfer variations
     gx_to_sim_mass = utils.galaxy_params('MGal')/mass_norm
     
-    if ModelParams['Code'] == 'BPASS':
+    if ModelParams['code'] == 'BPASS':
         #BPASS models have a different mass normalization, 
         #so we need to adjust the gx_to_sim_mass accordingly
         gx_to_sim_mass = gx_to_sim_mass * 20.9966
-
+    print(len(T0_DWD_LISA))
     N_DWD_Gx = len(T0_DWD_LISA) * gx_to_sim_mass
     N_DWD_Gx = int(N_DWD_Gx) + (np.random.uniform() < (N_DWD_Gx % 1))
     
     return N_DWD_Gx
 
 def get_component_stats(gx_component, gx_component_df, ModelParams):
-    '''Gets the statistics for a given galaxy component.
-    
+    """
+    Compute sub-bin statistics for a given Galactic component.
+
     Parameters
     ----------
     gx_component : str
-        Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
-    gx_component_df : DataFrame
-        DataFrame containing the DWDs in the component.
+        Name of the component (e.g., 'ThinDisk1').
+    gx_component_df : pd.DataFrame
+        DataFrame containing the DWDs in this component.
+        Must have 'AbsTimeToLISAMyr' and 'AbsTimeToLISAEndMyr'.
     ModelParams : dict
-        Dictionary containing model parameters including 'DeltaTGalMyr'.
+        Dictionary containing 'DeltaTGalMyr'.
 
     Returns
     -------
-    stats : DataFrame
-        DataFrame containing the statistics for the component.
-    '''
+    stats : pd.DataFrame
+        Columns: ['BinID', 'component_name', 'n_DWDs']
+    """
 
+    # Find the index of the Galactic component
     ii = utils.Besancon_params('BinName').tolist().index(gx_component)
-    NSubBins = int(np.floor((utils.Besancon_params('AgeMax')[ii] - utils.Besancon_params('AgeMin')[ii])/ModelParams['DeltaTGalMyr']) + 1)
-    bin_edges = np.linspace(utils.Besancon_params('AgeMin')[ii], utils.Besancon_params('AgeMax')[ii], NSubBins)   
-    bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
-    gx_counts = gx_component_df.copy()
-    gx_counts['age_bin_ind'] = np.digitize(gx_counts['age'].values, bin_edges, right=True)
 
-    DWD_counts = gx_counts['age_bin_ind'].value_counts().sort_index().reindex(range(0, len(bin_edges[:-1])), fill_value=0)
-    stats = pd.DataFrame(np.array([ii*np.ones_like(bin_centers), bin_centers, DWD_counts]).T, columns=['BinID', 'SubBinMidAge', 'SubBinNDWDsReal'])
-
+    stats = pd.DataFrame({
+        'BinID': [ii],
+        'component_name': [gx_component],
+        'n_DWDs': [len(gx_component_df)]
+    })
 
     return stats
-
 
 def sample_component_ages(gx_component, n_samp):
     '''Assigns ages to the DWDs in a given component based on the Besancon parameters.
@@ -361,23 +370,32 @@ def sample_component_ages(gx_component, n_samp):
     # Get the age range and mass fraction for the component
     t_lo = utils.Besancon_params('AgeMin')[ii]
     t_hi = utils.Besancon_params('AgeMax')[ii]
-    ages = np.random.uniform(t_lo, t_hi, n_samp)
+    if np.all(t_lo == t_hi):
+        ages = np.ones(n_samp) * t_lo
+    else:
+        ages = np.random.uniform(t_lo, t_hi, n_samp)
     return ages
 
-def filter_possible_LISA_sources(gx_component_df):
+def filter_possible_LISA_sources(gx_component_df, f_gw_LISA_low=1e-4, f_gw_LISA_high=1e-1):
     '''Filters the DWDs in a galaxy component DataFrame to those that are likely LISA sources.
     
     Parameters
     ----------
     gx_component_df : DataFrame
-        DataFrame containing the DWDs in a specific galaxy component.
-    
+        DataFrame containing the DWDs in a specific galaxy component. 
+    f_gw_LISA_low : float, optional (default=1e-4)
+        Lower bound of the LISA frequency band in Hz.   
+    f_gw_LISA_high : float, optional (default=1e-1)
+        Upper bound of the LISA frequency band in Hz.
+
+
     Returns
     -------
     gx_component_df : DataFrame
         DataFrame containing only the DWDs that have a semimajor axis within the LISA band
     '''
     # calculate the evolution of the orbit due to GW emission
+    # first filter to make sure that we only keep DWDs that have formed by the present age
     gx_component_df = gx_component_df.loc[gx_component_df['age'] > gx_component_df['time']].copy()
     t_evol = gx_component_df['age'] - gx_component_df['time']
     
@@ -387,27 +405,33 @@ def filter_possible_LISA_sources(gx_component_df):
         a_i=gx_component_df['semiMajor'].values * u.Rsun, 
         t_evol=t_evol.values * u.Myr,
         output_vars='a'
-    ).to(u.Rsun).value
-
-    gx_component_df['semiMajor_today'] = a_today[:,-1]
+    ).to(u.Rsun).value[:,-1]
+    gx_component_df['semiMajor_today'] = a_today
 
     # filter based on the semimajor axis that is within the LISA band
     a_LISA_hi = lw.utils.get_a_from_f_orb(
-        f_orb=0.5*1e-1 * u.Hz, 
+        f_orb=0.5*f_gw_LISA_high * u.Hz, 
         m_1=gx_component_df['mass1'].values * u.Msun, 
         m_2=gx_component_df['mass2'].values * u.Msun
     ).to(u.Rsun).value
 
     a_LISA_lo = lw.utils.get_a_from_f_orb(
-        f_orb=0.5*1e-4 * u.Hz, 
+        f_orb=0.5*f_gw_LISA_low * u.Hz, 
         m_1=gx_component_df['mass1'].values * u.Msun, 
         m_2=gx_component_df['mass2'].values * u.Msun
     ).to(u.Rsun).value
 
+    # keep only DWDs that have a semimajor axis today that is within the LISA band
     gx_component_df = gx_component_df.loc[
         (gx_component_df['semiMajor_today'] < a_LISA_lo) & 
         (gx_component_df['semiMajor_today'] > a_LISA_hi)
     ]
+
+    # keep only the DWDs that have not filled their Roche lobe at present day
+    gx_component_df = gx_component_df.loc[
+        gx_component_df['semiMajor_today'] > gx_component_df['a_rlo']
+    ]
+
     return gx_component_df
 
 
@@ -536,11 +560,14 @@ def draw_positions(gx_component, n_samp, ModelRCache, ZCDFDictSet):
     Gal_l[disk_neg_mask]  = 2*np.pi - np.arccos(X_rel[disk_neg_mask]/(np.sqrt((dist[disk_neg_mask])**2 - (Z_rel[disk_neg_mask])**2)))
     
     positions = pd.DataFrame({
-        'R': R,
-        'Z': Z,
+        'R': R_set,
+        'Z': Z_set,
         'X_rel': X_rel,
         'Y_rel': Y_rel,
         'Z_rel': Z_rel,
+        'X_gx': X_set,
+        'Y_gx': Y_set,
+        'Z_gx': Z_set,
         'dist': dist,
         'Gal_b': Gal_b,
         'Gal_l': Gal_l
@@ -561,8 +588,8 @@ def draw_metallicities(gx_component, n_samp):
     
     Returns
     -------
-    metallicities : array-like
-        Array of metallicities assigned to the DWDs in the component.
+    FeH : array-like
+        Array of log(metallicities) assigned to the DWDs in the component.
     '''
     # For simplicity, we can assume a uniform distribution of metallicities
     # or use a predefined distribution based on the component.
@@ -570,10 +597,11 @@ def draw_metallicities(gx_component, n_samp):
     mean_FeH = utils.Besancon_params('FeHMean')[iBin]
     std_FeH = utils.Besancon_params('FeHStD')[iBin]
     FeH = np.random.normal(mean_FeH,std_FeH, n_samp)
+    
     return FeH
 
 
-def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet):
+def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet, f_LISA_low=1e-4, f_LISA_high=1e-1):
     '''Creates a DataFrame containing the DWDs in a specific galaxy component by sampling
     ages, metallicities, and positions based on the Besancon parameters.
     
@@ -589,6 +617,10 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
         Dictionary containing the radial distribution parameters for the galaxy components.
     ZCDFDictSet : dict
         Dictionary containing the vertical distribution parameters for the galaxy components.
+    f_LISA_low : float, optional (default=1e-4)
+        Lower bound of the LISA frequency band in Hz.
+    f_LISA_high : float, optional (default=1e-1)
+        Upper bound of the LISA frequency band in Hz.
     
     Returns
     -------
@@ -601,7 +633,7 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
     gx_component_df['age'] = sample_component_ages(gx_component, n_samp=n_comp)
 
     # filter based on GW evolution up to the present day
-    gx_component_df = filter_possible_LISA_sources(gx_component_df)
+    gx_component_df = filter_possible_LISA_sources(gx_component_df, f_LISA_low, f_LISA_high)
 
     # draw metallicities for the component
     gx_component_df['FeH'] = draw_metallicities(gx_component, n_samp=len(gx_component_df))
@@ -609,9 +641,153 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
     # draw positions for the component
     positions = draw_positions(gx_component, n_samp=len(gx_component_df), ModelRCache=ModelRCache, ZCDFDictSet=ZCDFDictSet)
     gx_component_df = pd.concat([gx_component_df.reset_index(drop=True), positions.reset_index(drop=True)], axis=1)
-    positions = None # clear memory
+    
+    # clear memory
+    del positions
 
     return gx_component_df
+
+
+def create_galaxy_component_midpoint(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet, f_LISA_low=1e-4, f_LISA_high=1e-1, delta_t_bin=0.5):
+    '''Creates a DataFrame containing the DWDs in a specific galaxy component by sampling
+    ages, metallicities, and positions based on the Besancon parameters.
+    
+    Parameters
+    ----------
+    T0_DWD_LISA : DataFrame
+        DataFrame containing the T0 data for DWDs that are likely LISA sources.
+    gx_component : str
+        Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
+    n_comp : int
+        Number of DWDs in the Galaxy for this component.
+    ModelRCache : dict
+        Dictionary containing the radial distribution parameters for the galaxy components.
+    ZCDFDictSet : dict
+        Dictionary containing the vertical distribution parameters for the galaxy components.
+    f_LISA_low : float, optional (default=1e-4)
+        Lower bound of the LISA frequency band in Hz.
+    f_LISA_high : float, optional (default=1e-1)
+        Upper bound of the LISA frequency band in Hz.
+    delta_t_bin : float, optional (default=0.5 Myr)
+        binwidth for age sampling; will assign ages at the midpoint of the bins
+    
+    Returns
+    -------
+    gx_component_df : DataFrame
+        DataFrame containing the DWDs in the specified galaxy component with assigned ages, metallicities, and positions.
+    '''
+    # select the correct galaxy component index based on the Besancon parameters
+    ii = utils.Besancon_params('BinName').tolist().index(gx_component)
+    if ii < 0:
+        raise ValueError(f"Component {gx_component} not found in Besancon parameters.")
+    
+    # Get the age range and mass fraction for the component
+    t_lo = utils.Besancon_params('AgeMin')[ii]
+    t_hi = utils.Besancon_params('AgeMax')[ii]
+    
+    if t_lo == t_hi:
+        # filter the T0_DWD_LISA DataFrame to only include DWDs that have a time to LISA 
+        # band that falls within the age bins of the component
+        T0_DWD_LISA_filter = T0_DWD_LISA.loc[
+            (T0_DWD_LISA['t_to_LISA'] < t_hi) &
+            (T0_DWD_LISA['t_LISA_max'] > t_hi)].copy()
+        
+        # draw all n_comp samples from the filtered pool active at this age
+        n_samp = len(T0_DWD_LISA_filter) / len(T0_DWD_LISA) * n_comp
+        # probabilistically add one more sample if the fractional part 
+        # is greater than a random number
+        n_samp = int(n_samp) + (np.random.uniform() < (n_samp % 1))
+
+        if n_samp > 0 and len(T0_DWD_LISA_filter) > 0:
+            # Creates a DataFrame containing present-day DWDs in the Galaxy
+            gx_component_df = T0_DWD_LISA_filter.sample(n=int(n_samp), replace=True)
+            # assign ages to the component based on the Besancon parameters
+            gx_component_df['age'] = np.ones(n_samp) * t_lo
+        
+            # filter based on GW evolution up to the present day
+            gx_component_df = filter_possible_LISA_sources(gx_component_df, f_LISA_low, f_LISA_high)
+        
+            # draw metallicities for the component
+            gx_component_df['FeH'] = draw_metallicities(gx_component, n_samp=len(gx_component_df))
+        
+            # draw positions for the component
+            positions = draw_positions(gx_component, n_samp=len(gx_component_df), ModelRCache=ModelRCache, ZCDFDictSet=ZCDFDictSet)
+            gx_component_df = pd.concat([gx_component_df.reset_index(drop=True), positions.reset_index(drop=True)], axis=1)
+            
+            # clear memory
+            del positions
+
+            # log the numbers
+            n_samp_list = [n_samp]
+            n_filter_list = [len(gx_component_df)]
+            age_list = [t_hi]
+        
+    else:
+        
+        # set up bins between minimum age and maximum age of the galaxy component
+        age_bins = np.arange(t_lo, t_hi + delta_t_bin/2, delta_t_bin)
+        midpoints = age_bins[:-1] + delta_t_bin/2
+
+        # loop over the age bins, filter to only include DWDs that have a time to 
+        # LISA band that falls within the age bins of the component, then sample
+        # from the filtered data frame with replacement weighted by the number of 
+        # fraction of filtered DWDs and the number of bins
+
+        n_samp_list = []
+        n_filter_list = []
+        age_list = []
+        gx_component_df = pd.DataFrame()
+        for mid in midpoints:
+            T0_DWD_LISA_filter = T0_DWD_LISA.loc[
+                (T0_DWD_LISA['t_to_LISA'] < mid) & 
+                (T0_DWD_LISA['t_LISA_max'] > mid)
+            ].copy()
+
+            if len(T0_DWD_LISA_filter) == 0:
+                continue
+
+            # determine the number of samples to draw from 
+            # the filtered DataFrame based on the fraction of DWDs in the filtered 
+            # DataFrame compared to the total T0_DWD_LISA DataFrame,
+            # the number of bins, and the total number of DWDs to draw for the component
+            n_samp = n_comp / len(midpoints) * len(T0_DWD_LISA_filter) / len(T0_DWD_LISA)
+
+            # probabilistically add one more sample if the fractional part is 
+            # greater than a random number
+            n_samp = int(n_samp) + (np.random.uniform() < (n_samp % 1))
+
+            if n_samp == 0:
+                continue
+
+            # Creates a DataFrame containing present-day DWDs in the Galaxy
+            gx_component_df_bin = T0_DWD_LISA_filter.sample(n=n_samp, replace=True)
+            # assign ages to the component based on the Besancon parameters and the
+            # midpoint of the age bins
+            gx_component_df_bin['age'] = np.ones(n_samp) * mid
+
+            # filter based on GW evolution up to the present day
+            gx_component_df_bin = filter_possible_LISA_sources(gx_component_df_bin, f_LISA_low, f_LISA_high)
+
+            # draw metallicities for the component
+            gx_component_df_bin['FeH'] = draw_metallicities(gx_component, n_samp=len(gx_component_df_bin))
+
+            # draw positions for the component
+            positions = draw_positions(gx_component, n_samp=len(gx_component_df_bin), ModelRCache=ModelRCache, ZCDFDictSet=ZCDFDictSet)
+            gx_component_df_bin = pd.concat([gx_component_df_bin.reset_index(drop=True), positions.reset_index(drop=True)], axis=1)
+
+            # log the numbers
+            n_samp_list.append(n_samp)
+            n_filter_list.append(len(gx_component_df_bin))
+            age_list.append(mid)
+
+
+            # clear memory
+            del positions
+
+            # concatenate the DataFrame for this age bin with the overall DataFrame for the component
+            gx_component_df = pd.concat([gx_component_df, gx_component_df_bin], ignore_index=True)
+
+    return gx_component_df, (n_samp_list, n_filter_list, age_list)
 
 def get_legwork_calculations(gx, t_obs=4 * u.yr):
     '''Calculates the legwork SNR and h0 for the DWDs in a galaxy component.
@@ -631,7 +807,7 @@ def get_legwork_calculations(gx, t_obs=4 * u.yr):
     # Calculate the h0 strain for each DWD
     sources = lw.source.Source(
         m_1=gx['mass1'].values * u.Msun, 
-        m_2=gx['mass1'].values * u.Msun, 
+        m_2=gx['mass2'].values * u.Msun, 
         ecc=np.zeros(len(gx)), 
         dist=gx['dist'].values * u.kpc, 
         f_orb=lw.utils.get_f_orb_from_a(
@@ -647,7 +823,7 @@ def get_legwork_calculations(gx, t_obs=4 * u.yr):
     
     return gx
 
-def write_galaxy(gx, write_path, gx_component, stats, write_h5=False, verbose=False):
+def write_galaxy(gx, write_path, gx_component, stats, cols_DWDs, write_h5=False, verbose=False):
     '''Writes the galaxy DataFrame to a file.
     
     Parameters
@@ -660,6 +836,8 @@ def write_galaxy(gx, write_path, gx_component, stats, write_h5=False, verbose=Fa
         Name of the component (e.g., 'ThinDisk1', 'ThinDisk2', etc.).
     stats : DataFrame
         DataFrame containing the number of LISA DWDs for the component.
+    cols_DWDs : list
+        List of column names for the DWDs in the galaxy DataFrame.
     write_h5 : bool, optional
         If True, writes the DataFrame to an HDF5 file. If False, writes to a CSV file. Default is False.
     verbose : bool, optional
@@ -670,17 +848,17 @@ def write_galaxy(gx, write_path, gx_component, stats, write_h5=False, verbose=Fa
     None
     '''
     legwork_mask = gx['legwork_SNR'] > 7
-
+    print(f"Writing {len(gx)} DWDs for component {gx_component} to {write_path}")
     if write_h5:
         if write_path is not None:
             if verbose:
                 print(f"Writing {len(gx)} DWDs for component {gx_component} to {write_path}")
             # Save the galaxy component DataFrame to the specified path
-            gx.to_hdf(write_path+'_Galaxy_AllDWDs.h5', mode='a', append=True, key='AllDWDs', format='table')
+            gx[cols_DWDs].to_hdf(write_path+'_Galaxy_AllDWDs.h5', mode='a', append=True, key='AllDWDs', format='table')
 
             if verbose:
                 print(f"Writing {len(gx[legwork_mask])} DWDs for component {gx_component} that are likely LISA sources to {write_path}_Galaxy_LISA_DWDs.h5")
-            gx[legwork_mask].to_hdf(write_path+'_Galaxy_LISA_DWDs.h5', mode='a', append=True, key='LISA_DWDs', format='table')
+            gx[legwork_mask][cols_DWDs].to_hdf(write_path+'_Galaxy_LISA_DWDs.h5', mode='a', append=True, key='LISA_DWDs', format='table')
 
             if verbose:
                 print(f"Writing statistics for component {gx_component} to {write_path}_Galaxy_LISA_Candidates_Bin_Data.h5")
@@ -688,24 +866,24 @@ def write_galaxy(gx, write_path, gx_component, stats, write_h5=False, verbose=Fa
         else:
             raise Warning("No write path specified. Galaxy will not be saved.")
         # clear the gx_component_df to save memory
-        gx = None
+        del gx
     else:
         if write_path is not None:
             # Save the galaxy component DataFrame to the specified path
             if verbose:
                 print(f"Writing {len(gx)} DWDs for component {gx_component} to {write_path}")
             if not os.path.exists(write_path+'_Galaxy_AllDWDs.csv'):
-                gx.to_csv(write_path+'_Galaxy_AllDWDs.csv', mode='w', index=False)
+                gx[cols_DWDs].to_csv(write_path+'_Galaxy_AllDWDs.csv', mode='w', index=False)
             else:
-                gx.to_csv(write_path+'_Galaxy_AllDWDs.csv', mode='a', header=False, index=False)
+                gx[cols_DWDs].to_csv(write_path+'_Galaxy_AllDWDs.csv', mode='a', header=False, index=False)
 
             # Save the possible LISA sources to a separate file
             if verbose:
                 print(f"Writing {len(gx[legwork_mask])} DWDs for component {gx_component} that are likely LISA sources to {write_path}_Galaxy_LISA_DWDs.csv")
             if not os.path.exists(write_path+'_Galaxy_LISA_DWDs.csv'):
-                gx[legwork_mask].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='w', index=False)
+                gx[legwork_mask][cols_DWDs].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='w', index=False)
             else:
-                gx[legwork_mask].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='a', header=False, index=False)
+                gx[legwork_mask][cols_DWDs].to_csv(write_path+'_Galaxy_LISA_DWDs.csv', mode='a', header=False, index=False)
 
             # Save the statistics for the component to a separate file
             if verbose:
@@ -717,11 +895,11 @@ def write_galaxy(gx, write_path, gx_component, stats, write_h5=False, verbose=Fa
         else:
             raise Warning("No write path specified. Galaxy will not be saved.")
         # clear the gx_component_df to save memory
-        gx = None
+        del gx
 
     return None
 
-def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=False, write_h5=False):
+def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=False, write_h5=False, midpoint=False):
     '''Creates a DataFrame containing present-day DWDs in the Galaxy
     that have frequencies in the LISA band 
     
@@ -732,7 +910,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
     N_DWD_Gx : int
         Number of DWDs in the Galaxy for this component.
     ModelParams : dict
-        Dictionary containing model parameters including 'RunSubType'.
+        Dictionary containing model parameters including 'run_sub_type'.
     write_path : str
         Path to save the DataFrame containing the DWDs in the Galaxy.
     verbose : bool, optional
@@ -758,6 +936,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
         iterator = tqdm.tqdm(utils.Besancon_params('BinName'))
     else:
         iterator = utils.Besancon_params('BinName')
+    
     for ii, gx_component in enumerate(iterator):
         n_comp = N_DWD_Gx * utils.Besancon_params('BinMassFractions')[ii]
 
@@ -769,7 +948,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
         if n_comp <= 0:
             print(f"Component {gx_component} has no DWDs to sample")
         
-        loop_length = 1e6
+        loop_length = 1e6 # set the loop length to 1 million DWDs to avoid memory issues
         if n_comp > loop_length:
             # If the number of DWDs to sample is too large, we will loop over the sampling
             # to avoid memory issues.
@@ -785,14 +964,19 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
             stats_tot = pd.DataFrame()    
             for ii in range(n_loop):
                 # create the galaxy component DataFrame
-                gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
+                if midpoint:
+                    gx, stats_list = create_galaxy_component_midpoint(
+                        T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet, ModelParams['f_LISA_low'], ModelParams['f_LISA_high'], ModelParams['delta_t_gal_myr'])
+                else:
+                    gx = create_galaxy_component(
+                        T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet, ModelParams['f_LISA_low'], ModelParams['f_LISA_high'])
 
                 # get the statistical data of number of DWDs in a finer time sampling grid
                 stats = get_component_stats(gx_component, gx, ModelParams)
                 if stats_tot.empty:
                     stats_tot = stats
                 else:
-                    stats_tot['SubBinNDWDsReal'] = stats_tot['SubBinNDWDsReal'].values + stats['SubBinNDWDsReal'].values
+                    stats_tot['n_DWDs'] = stats_tot['n_DWDs'].values + stats['n_DWDs'].values
                 
                 # Calculate the strain amplitude and SNR without confusion for each DWD in the component
                 gx = get_legwork_calculations(gx)
@@ -801,16 +985,30 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
                 gx['component'] = gx_component
 
                 # write the sub-loop
-                _ = write_galaxy(gx, write_path, gx_component, stats, write_h5=write_h5, verbose=verbose)  
+                _ = write_galaxy(gx, write_path, gx_component, stats, cols_DWDs=ModelParams['cols_write'], write_h5=write_h5, verbose=verbose)  
+
+                # append the stats list for this loop to the overall stats list for the component
+                if midpoint:
+                    if ii == 0:
+                        stats_list_tot = stats_list
+                    else:
+                        stats_list_tot = [x + y for x, y in zip(stats_list_tot, stats_list)]
                 
             # create the last galaxy component DataFrame with the left over DWDs
             if verbose:
                 print(f"Adding {n_left_over} left over DWDs for component {gx_component}")
-            gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet)
+            
+            if midpoint:
+                gx, stats_list = create_galaxy_component_midpoint(
+                    T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet, ModelParams['f_LISA_low'], ModelParams['f_LISA_high'], ModelParams['delta_t_gal_myr'])
+                stats_list_tot = [x + y for x, y in zip(stats_list_tot, stats_list)]
+
+            else:
+                gx = create_galaxy_component(T0_DWD_LISA, gx_component, n_left_over, ModelRCache, ZCDFDictSet, ModelParams['f_LISA_low'], ModelParams['f_LISA_high'])
 
             # get the statistical data of number of DWDs in a finer time sampling grid
             stats = get_component_stats(gx_component, gx, ModelParams)
-            stats_tot['SubBinNDWDsReal'] = stats_tot['SubBinNDWDsReal'].values + stats['SubBinNDWDsReal'].values
+            stats_tot['n_DWDs'] = stats_tot['n_DWDs'].values + stats['n_DWDs'].values
 
             # Calculate the strain amplitude and SNR without confusion for each DWD in the component
             gx = get_legwork_calculations(gx)
@@ -819,11 +1017,32 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
             gx['component'] = gx_component
 
             # write the sub-loop
-            _ = write_galaxy(gx, write_path, gx_component, stats, write_h5=write_h5, verbose=verbose)
-            
+            _ = write_galaxy(gx, write_path, gx_component, stats, cols_DWDs=ModelParams['cols_write'], write_h5=write_h5, verbose=verbose)
+
+            # append the stats list to a data file for the component
+            if midpoint:
+                stats_list_df = pd.DataFrame({
+                    'age': stats_list_tot[2],
+                    'n_samp': stats_list_tot[0],
+                    'n_filter': stats_list_tot[1],
+                    'component': gx_component
+                })
+                if write_h5:
+                    stats_list_df.to_hdf(write_path + '_midpoint_stats.h5', mode='a', append=True, key='midpoint_stats', format='table')
+                else:
+                    if not os.path.exists(write_path + '_midpoint_stats.csv'):
+                        stats_list_df.to_csv(write_path + '_midpoint_stats.csv', mode='w', index=False)
+                    else:
+                        stats_list_df.to_csv(write_path + '_midpoint_stats.csv', mode='a', header=False, index=False)
+
         else:
             # create the galaxy component DataFrame
-            gx_component_df = create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet)
+            if midpoint:
+                gx_component_df, stats_list = create_galaxy_component_midpoint(
+                    T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet, ModelParams['f_LISA_low'], ModelParams['f_LISA_high'], ModelParams['delta_t_gal_myr'])
+            else:
+                gx_component_df = create_galaxy_component(
+                    T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDFDictSet, ModelParams['f_LISA_low'], ModelParams['f_LISA_high'])
 
             # get the statistical data of number of DWDs in a finer time sampling grid
             stats_tot = get_component_stats(gx_component, gx_component_df, ModelParams)
@@ -835,7 +1054,23 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path, verbose=F
             gx_component_df['component'] = gx_component
             
             # write the galaxy component DataFrame to a file
-            _ = write_galaxy(gx_component_df, write_path, gx_component, stats_tot, write_h5=write_h5, verbose=verbose)
+            _ = write_galaxy(gx_component_df, write_path, gx_component, stats_tot, cols_DWDs=ModelParams['cols_write'], write_h5=write_h5, verbose=verbose)
+
+            # write the midpoint stats list to a file
+            if midpoint:
+                stats_list_df = pd.DataFrame({
+                    'age': stats_list[2],
+                    'n_samp': stats_list[0],
+                    'n_filter': stats_list[1],
+                    'component': gx_component
+                })
+                if write_h5:
+                    stats_list_df.to_hdf(write_path + '_midpoint_stats.h5', mode='a', append=True, key='midpoint_stats', format='table')
+                else:
+                    if not os.path.exists(write_path + '_midpoint_stats.csv'):
+                        stats_list_df.to_csv(write_path + '_midpoint_stats.csv', mode='w', index=False)
+                    else:
+                        stats_list_df.to_csv(write_path + '_midpoint_stats.csv', mode='a', header=False, index=False)
             
 
     return None
