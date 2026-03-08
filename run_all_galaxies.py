@@ -16,7 +16,8 @@ def run_gx(run_wave, run_sub_type, code, dat_path, run_full_galaxy=True, run_dow
                    'age_max': 14000, #maximum age of the halo is 14 Gyr
                    'dat_path': dat_path,
                    'delta_t_gal_myr': 0.5, #Time step resolution in the Galactic SFR
-                   'cols_write': ['ID', 'age', 'mass1', 'mass2', 'semiMajor_today', 'X_gx', 'Y_gx', 'Z_gx', 'dist', 'component'] #Columns to write to the galaxy output file
+                   'cols_write': ['ID', 'age', 'mass1', 'mass2', 'semiMajor_today', 'X_gx', 'Y_gx', 'Z_gx', 'dist', 'component'], #Columns to write to the galaxy output file
+                   'midpoint': True
                    }
     
     T0_dat_path, write_path, write_path_downsampled = utils.set_paths(ModelParams)
@@ -41,7 +42,7 @@ def run_gx(run_wave, run_sub_type, code, dat_path, run_full_galaxy=True, run_dow
         print(f"ValueError: {ve}")
 
     if run_full_galaxy:
-        gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False, midpoint=False)
+        gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False, midpoint=ModelParams['midpoint'])
     if run_downsampled_galaxy:
         if write_path_downsampled is not None:
             gx.create_downsampled_galaxy(write_path=write_path_downsampled, verbose=False, write_h5=False)
