@@ -217,13 +217,16 @@ def load_Rdicts_from_hdf5(file_path):
     return ModelRCache
 
 
-def set_paths(ModelParams):
+def set_paths(ModelParams, overwrite_path=None):
     '''Configure file paths based on ModelParams settings.
     
     Parameters:
     -----------
     ModelParams : dict
         Dictionary containing model parameters including 'run_wave', 'run_sub_type', 'code'
+    overwrite_path : str, optional
+        If provided, the existence check is performed against this path instead of
+        the default write_path derived from ModelParams.
         
     Returns:
     --------
@@ -288,5 +291,14 @@ def set_paths(ModelParams):
     if not Path(T0_dat_path).exists():
         print(f'WARNING: T0 path does not exist: {T0_dat_path}')
         return None, None, None
-    
+
+    check_path = overwrite_path if overwrite_path is not None else write_path
+    for ext in ['.h5', '.csv']:
+        existing = check_path + '_Galaxy_AllDWDs' + ext
+        if Path(existing).exists():
+            raise FileExistsError(
+                f'Galaxy run already exists at: {existing}\n'
+                f'Delete or move the existing output before re-running.'
+            )
+
     return T0_dat_path, write_path, write_path_downsampled
