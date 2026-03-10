@@ -139,7 +139,9 @@ class Galaxy:
                 print('CDFs calculated!')
         
         # Create the galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5, midpoint=midpoint)
+        _ = pop_create.create_LISA_galaxy(
+            self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path            
+        )
         
         return None
     
@@ -163,7 +165,9 @@ class Galaxy:
                 print('CDFs calculated!')
         
         # Create the downsampled galaxy component DataFrame
-        _ = pop_create.create_LISA_galaxy(self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path, verbose=verbose, write_h5=write_h5, midpoint=midpoint)
+        _ = pop_create.create_LISA_galaxy(
+            self.T0_DWD_LISA, self.N_DWD_Gx, self.ModelParams, write_path=galaxy_write_path
+        )
         
         return None
 
