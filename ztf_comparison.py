@@ -60,10 +60,6 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
     """
     Sorts the galaxy data into frequency/distance bins for the plotting code
     to use.
-    Note: this uses the column ordering from the galaxy files from Katie's
-    branch. Does not work with the column numbering from Alexey's branch. The
-    line-by-line scanning would need to be tweaked in order to work dynamically
-    with different column orderings.
     
     Parameters
     ----------
@@ -91,7 +87,7 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
     #every 0.1 dex in log-space: -5, -4.9, -4.8 etc.
     
     dist_upper_bound = 2000 #pc
-    #dist_upper_bound_kpc = dist_upper_bound/1000
+    dist_upper_bound_kpc = dist_upper_bound/1000
     dist_bin_bounds = np.linspace(0,dist_upper_bound,num=41) #every 50 pc, linearly
     
     amount_per_bin = np.zeros((50,40)) #zeros, not empty
@@ -147,24 +143,31 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
     
     for line in galaxy_file:
         if header_row_flag == True: #skip first row of file (headers)
-            #to do something with the header row, put it here
+            #using the header row to identify columns
+            line_as_list = list(line.split(','))
+            dist_index = line_as_list.index('dist')
+            m1_index = line_as_list.index('mass1')
+            m2_index = line_as_list.index('mass2')
+            a_index = line_as_list.index('semiMajor')
+            r1_index = line_as_list.index('radius1')
+            r2_index = line_as_list.index('radius2')
+            
             header_row_flag = False
             continue
         
         line_as_list = list(line.split(','))
-        dist = float(line_as_list[33]) #pc
+        dist = float(line_as_list[dist_index]) #kpc
         
-        if dist < dist_upper_bound:
-            dist_bin = np.floor(dist/50) #bins are 50 pc (0.05 kpc) wide and start at 0 pc
+        if dist < dist_upper_bound_kpc:
+            dist_bin = np.floor(dist/0.05) #bins are 50 pc (0.05 kpc) wide and start at 0 pc
         else: #skip systems at larger distances
             iteration_no += 1
             if (iteration_no + 1) % 1000000 == 0: print(str(iteration_no + 1) + ' systems done')
             continue
         
-        m1 = float(line_as_list[7]) #Msun
-        m2 = float(line_as_list[12]) #Msun
-        a = float(line_as_list[4]) #Rsun
-        
+        m1 = float(line_as_list[m1_index]) #Msun
+        m2 = float(line_as_list[m2_index]) #Msun
+        a = float(line_as_list[a_index]) #Rsun
         
         freq = get_f_gw_from_semimajor(m1,m2,a) #Hz
         freq_bin = np.floor(10*np.log10(freq)) + 50
@@ -175,17 +178,12 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
                 r1 = wd_radius_PPE(m1) #Rsun
                 r2 = wd_radius_PPE(m2) #Rsun
             else:
-                r1 = float(line_as_list[8]) #Rsun
-                r2 = float(line_as_list[13]) #Rsun
+                r1 = float(line_as_list[r1_index]) #Rsun
+                r2 = float(line_as_list[r2_index]) #Rsun
             
             system_weight = (r1 + r2)/a #eclipse probability; a and r in Rsun
         else:
             system_weight = 1
-        
-        #testing
-        #print(str(r1) + '   ' + str(r2) + '  ' + str(freq_bin) + '  ' + str(dist_bin))
-        #if iteration_no == 10:
-        #    break
         
         amount_per_bin[int(freq_bin),int(dist_bin)] += system_weight
         #add the (weighted) system to the total for the appropriate freq/dist bin
