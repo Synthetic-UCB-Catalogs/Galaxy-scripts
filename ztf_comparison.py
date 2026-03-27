@@ -299,7 +299,7 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('(A) Distance = 0-500 pc')
+        plt.title('(A) ' + code_name + ', ' + var_name + ', distance = 0-500 pc')
         
         plt.figure(2)
         plt.step(freqs_reversed,0.6*model_mid_cu,'C0-',marker=11,linewidth=2,where='mid',label='Model')
@@ -308,7 +308,7 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('(B) Distance = 500-1000 pc')
+        plt.title('(B) ' + code_name + ', ' + var_name + ', distance = 500-1000 pc')
         
         plt.figure(3)
         plt.step(freqs_reversed,0.6*model_far_cu,'C0-',marker=11,linewidth=2,where='mid',label='Model')
@@ -317,7 +317,7 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('(C) Distance = 1000-2000 pc')
+        plt.title('(C) ' + code_name + ', ' + var_name + ', distance = 1000-2000 pc')
         
     elif panel_option == 'one' or panel_option == 'merged':
         model_all = [sum(model_array[i,0:40]) for i in range(model_array.shape[0])] #0-2000 pc
@@ -332,7 +332,7 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('Distance = 0-2000 pc')
+        plt.title(code_name + ', ' + var_name + ', distance = 0-2000 pc')
         
     else:
         raise ValueError('Invalid panel_option specified.')
