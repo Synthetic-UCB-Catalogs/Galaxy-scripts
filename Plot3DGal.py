@@ -36,20 +36,44 @@ AnimationStepQ = False
 #SimType can be MS, DWDCand, DWDLISA
 SimTypesUse   = ['MS', 'DWDCand', 'DWDLISA']
 #Plot group name
-PlotSetName   = 'IC_Variations'
+PlotSetName   = 'initial_condition_variations'
 
-RunWave         = 'fiducial'
+RunWave         = 'initial_condition_variations'
+RunSubWave      = '' 
+RunSubType      = 'fiducial'
 #RunWave         = 'porb_log_uniform'
 #RunWave         = 'uniform_ecc'
 #RunWave         = 'qmin_01'
+
 #Code            = 'COSMIC'
 #Code            = 'ComBinE'
 #Code            = 'COMPAS'
 #Code            = 'COSMIC'
-Code             = 'SEVN'
+#Code             = 'SEVN'
+Code             = 'BPASS'
     
 OutputSubfolder = PlotSetName
-CurrOutDir      = './ProcessedSimulations/' + OutputSubfolder + '/' + RunWave 
+
+SubWavesPresentDict = {'initial_condition_variations': False, 'mass_transfer_variations': True}
+SubWavesPresent     = SubWavesPresentDict[RunWave]
+
+if (RunWave == 'initial_condition_variations') or ((RunWave == 'mass_transfer_variations') and (RunSubWave == 'fiducial')):
+    if Code == 'SEVN':
+        FileName        = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubType + '/' + Code + '_MIST_T0.csv'
+    elif Code == 'BPASS':
+        FileName        = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubType + '/' + Code + '_T0.csv'
+    else:
+        FileName        = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubType + '/' + Code + '_T0.hdf5'
+    CurrOutDir      = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubType + '/'
+elif (RunWave == 'mass_transfer_variations'):
+    if Code == 'SEVN':
+        FileName        = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubWave + '/' + RunSubType + '/' + Code + '_MIST_T0.csv'
+    elif Code == 'BPASS':
+        FileName        = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubWave + '/' + RunSubType + '/' + Code + '_T0.csv'
+    else:
+        FileName        = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_binary_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubWave + '/' + RunSubType + '/' + Code + '_T0.hdf5'
+    CurrOutDir      = os.environ['UCB_GOOGLE_DRIVE_DIR'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + RunWave + '/' + RunSubWave + '/' + RunSubType + '/'
+    
 PathSet         = {'MS': './FieldMSTests/FullGalaxyMSs.csv', 'DWDCand': CurrOutDir + '/' + Code + '_Galaxy_AllDWDs.csv', 'DWDLISA': CurrOutDir + '/' + Code + '_Galaxy_LISA_DWDs.csv'}
 GalStatsPath    = CurrOutDir + '/' + Code + '_Galaxy_LISA_Candidates_Bin_Data.csv'
 

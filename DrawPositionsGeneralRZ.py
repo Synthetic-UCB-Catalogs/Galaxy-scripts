@@ -608,10 +608,9 @@ def DrawStar(Model,iBin):
         BinSet = list(range(1,11))
         iBin   = np.random.choice(BinSet, p=NormConstantsDict['BinMassFractions'])
     RZ     = DrawRZ(iBin,Model)
-    Age    = np.random.uniform(BesanconParamsDefined['AgeMin'][iBin-1],BesanconParamsDefined['AgeMax'][iBin-1])
     FeH    = np.random.normal(BesanconParamsDefined['FeHMean'][iBin-1],BesanconParamsDefined['FeHStD'][iBin-1])
     
-    Res = {'RZ': RZ, 'Bin': iBin, 'Age': Age, 'FeH': FeH}
+    Res = {'RZ': RZ, 'Bin': iBin, 'FeH': FeH}
 
     return Res
 
@@ -887,8 +886,9 @@ if ModelParams['ImportSimulation']:
 
             BirthTimes       = BinRNG.uniform(low=IntervalStartSet, high=IntervalEndSet) 
             #Find present-day periods: 
-            PresentDayDWDCandFin['ATodayRSun']     = APostGWRSun(PresentDayDWDCandFin['mass1'], PresentDayDWDCandFin['mass2'], PresentDayDWDCandFin['semiMajor'], BirthTimes - PresentDayDWDCandFin['time'])
-            PresentDayDWDCandFin['PSetTodayHours'] = POrbYr(PresentDayDWDCandFin['mass1'],PresentDayDWDCandFin['mass2'], PresentDayDWDCandFin['ATodayRSun'])*YearToSec/(3600.)
+            PresentDayDWDCandFin['BirthTimesAbsMyr'] = BirthTimes
+            PresentDayDWDCandFin['ATodayRSun']       = APostGWRSun(PresentDayDWDCandFin['mass1'], PresentDayDWDCandFin['mass2'], PresentDayDWDCandFin['semiMajor'], BirthTimes - PresentDayDWDCandFin['time'])
+            PresentDayDWDCandFin['PSetTodayHours']   = POrbYr(PresentDayDWDCandFin['mass1'],PresentDayDWDCandFin['mass2'], PresentDayDWDCandFin['ATodayRSun'])*YearToSec/(3600.)
             PresentDayDWDCandFin = PresentDayDWDCandFin.loc[PresentDayDWDCandFin['PSetTodayHours'] < 5.6]
             
             #Add Galactic positions
@@ -956,7 +956,6 @@ ZSetFin   = np.empty(OutputChunkSize, dtype=np.float64)
 ThSetFin  = np.empty(OutputChunkSize, dtype=np.float64)
 XSetFin   = np.empty(OutputChunkSize, dtype=np.float64)
 YSetFin   = np.empty(OutputChunkSize, dtype=np.float64)
-AgeFin    = np.empty(OutputChunkSize, dtype=np.float64)
 FeHFin    = np.empty(OutputChunkSize, dtype=np.float64)
 
 XRel     = np.empty(OutputChunkSize, dtype=np.float64)
@@ -990,7 +989,6 @@ with open(SavePath, "w", newline="", buffering=32*1024*1024) as f:
         ZSetFin[Slice]   = ZKpcAll[StartIDX:StopIDX]
         
         BinFinM1        = BinFin[Slice] - 1
-        AgeFin[Slice]   = RNG.uniform(GalAgeMinSet[BinFinM1], GalAgeMaxSet[BinFinM1], size=NDo)
         FeHFin[Slice]   = RNG.normal(GalFeHMeanSet[BinFinM1], GalFeHStDSet[BinFinM1], size=NDo)
         
         # Obtain cartesian coordinates
@@ -1036,7 +1034,6 @@ with open(SavePath, "w", newline="", buffering=32*1024*1024) as f:
                 
         ResDict    = {
             'Bin': BinFin[Slice], 
-            'Age': AgeFin[Slice], 
             'FeH': FeHFin[Slice], 
             'Xkpc': XSetFin[Slice], 
             'Ykpc': YSetFin[Slice], 
