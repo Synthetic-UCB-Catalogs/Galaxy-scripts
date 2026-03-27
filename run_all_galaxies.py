@@ -15,12 +15,15 @@ def run_gx(run_wave, run_sub_type, code, dat_path, run_full_galaxy=True, run_dow
                    'f_LISA_high': 1e-1, #LISA upper GW frequency cut-off in Hz
                    'age_max': 14000, #maximum age of the halo is 14 Gyr
                    'dat_path': dat_path,
+                   'midpoint_ages': False, # if True, the age of each binary is set to the midpoint of its age bin; if False, the age is randomly sampled within the age bin
                    'delta_t_gal_myr': 0.5, #Time step resolution in the Galactic SFR
                    'cols_write': ['ID', 'age', 'mass1', 'mass2', 'semiMajor_today', 'X_gx', 'Y_gx', 'Z_gx', 'dist', 'component'], #Columns to write to the galaxy output file
-                   'midpoint': True
+                   'write_h5': False,
+                   'verbose': False,
+                   'loop_length': int(1e6) #Number of DWDs to sample in each loop iteration when creating the galaxy to avoid memory issues
                    }
     
-    T0_dat_path, write_path, write_path_downsampled = utils.set_paths(ModelParams)
+    T0_dat_path, write_path, write_path_downsampled = utils.set_paths(ModelParams, overwrite_path=overwrite_path)
     if overwrite_path is not None:
         write_path = overwrite_path
         write_path_downsampled = overwrite_path
@@ -42,10 +45,10 @@ def run_gx(run_wave, run_sub_type, code, dat_path, run_full_galaxy=True, run_dow
         print(f"ValueError: {ve}")
 
     if run_full_galaxy:
-        gx.create_galaxy(write_path=write_path, verbose=False, write_h5=False, midpoint=ModelParams['midpoint'])
+        gx.create_galaxy(write_path=write_path, verbose=ModelParams['verbose'], write_h5=ModelParams['write_h5'], midpoint=ModelParams['midpoint_ages'])
     if run_downsampled_galaxy:
         if write_path_downsampled is not None:
-            gx.create_downsampled_galaxy(write_path=write_path_downsampled, verbose=False, write_h5=False)
+            gx.create_downsampled_galaxy(write_path=write_path_downsampled, verbose=ModelParams['verbose'], write_h5=ModelParams['write_h5'], midpoint=ModelParams['midpoint_ages'])
         else:
             print('Skipping downsampled galaxy creation due to missing write path.')
             print(f'check whether downsampled write path exists: {write_path_downsampled}')
@@ -70,32 +73,32 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run Galaxy simulations across different configurations for simulated binary populations.')
     parser.add_argument('--dat_path', type=str, required=True, help='Base path to the data directory containing simulated binary populations.')
     parser.add_argument('--overwrite_path', type=str, required=False, help='Path to overwrite the default output path for the galaxy data.')
-
+    parser.add_argument('--n_repeats', type=int, default=100, help='Number of repeat runs per code (default: 100).')
     args = parser.parse_args()
 
     multi = True
-    verbose=True
-    run_full_galaxy = True
-    run_downsampled_galaxy = False
-    #run_waves = ['initial_condition_variations', 'mass_transfer_variations']
-    #initial_conditions_variations = ['fiducial', 'thermal_ecc', 'uniform_ecc', 
-    #                                 'm2_min_05', 'qmin_01', 'porb_log_uniform']
-    #mass_transfer_variations = ['alpha_lambda_1', 'alpha_lambda_2', 'alpha_lambda_02', 'alpha_lambda_05', 
-    #                            'alpha_gamma_2', 'qcrit_claeys_14','qcrit_hurley_02', 'qcrit_hurley_webbink', 
-    #                            'qcrit_zetas', 'accretion_0', 'accretion_1', 'accretion_05']
+    verbose=False
+    run_full_galaxy = False
+    run_downsampled_galaxy = True
+    run_waves = ['initial_condition_variations', 'mass_transfer_variations']
+    initial_conditions_variations = ['fiducial', 'thermal_ecc', 'uniform_ecc', 
+                                     'm2_min_05', 'qmin_01', 'porb_log_uniform']
+    mass_transfer_variations = ['alpha_lambda_1', 'alpha_lambda_2', 'alpha_lambda_02', 'alpha_lambda_05', 
+                                'alpha_gamma_2', 'qcrit_claeys_14','qcrit_hurley_02', 'qcrit_hurley_webbink', 
+                                'qcrit_zetas', 'accretion_0', 'accretion_1', 'accretion_05']
     
-    run_waves = ['initial_condition_variations']
-    initial_conditions_variations = ['fiducial']
+    #run_waves = ['initial_condition_variations']
+    #initial_conditions_variations = ['fiducial']
     
-    #codes = ['COSMIC', 'BSE', 'SEVN_MIST', 'BPASS', 'SeBa', 'COMPAS', 'METISSE']
+    codes = ['COSMIC', 'BSE', 'SEVN_MIST', 'BPASS', 'SeBa', 'COMPAS', 'METISSE']
     #codes = ['COSMIC', 'BSE', 'SeBa']
-    codes = ['COSMIC']
+    #codes = ['COSMIC']
     
     dat_path = Path(args.dat_path) / 'simulated_binary_populations' / 'monte_carlo_comparisons'
     
     missing_paths = []
     args_in = []
-    for rw, subtype in zip(run_waves, [initial_conditions_variations]):
+    for rw, subtype in zip(run_waves, [initial_conditions_variations, mass_transfer_variations]):
         for s in subtype:
             for c in codes:
                 if rw == 'initial_condition_variations':
