@@ -402,6 +402,7 @@ def filter_possible_LISA_sources(gx_component_df, f_gw_LISA_low=1e-4, f_gw_LISA_
     
     # first filter to make sure that we only keep DWDs that have formed by the present age
     gx_component_df = gx_component_df.loc[gx_component_df['age'] > gx_component_df['time']].copy()
+
     t_evol = gx_component_df['age'] - gx_component_df['time']
     
     a_today = lw.evol.evol_circ(
@@ -633,12 +634,13 @@ def create_galaxy_component(T0_DWD_LISA, gx_component, n_comp, ModelRCache, ZCDF
     '''
     # Creates a DataFrame containing present-day DWDs in the Galaxy
     gx_component_df = T0_DWD_LISA.sample(n=n_comp, replace=True)
+    
     # assign ages to the component based on the Besancon parameters
     gx_component_df['age'] = sample_component_ages(gx_component, n_samp=n_comp)
 
     # filter based on GW evolution up to the present day
     gx_component_df = filter_possible_LISA_sources(gx_component_df, f_LISA_low, f_LISA_high)
-
+    
     # draw metallicities for the component
     gx_component_df['FeH'] = draw_metallicities(gx_component, n_samp=len(gx_component_df))
 
@@ -917,11 +919,10 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path):
         iterator = tqdm.tqdm(utils.Besancon_params('BinName'))
     else:
         iterator = utils.Besancon_params('BinName')
-    
     loop_length = ModelParams.get('loop_length', 1e6)
     for ii, gx_component in enumerate(iterator):
         n_comp = N_DWD_Gx * utils.Besancon_params('BinMassFractions')[ii]
-
+        
         # Can only sample an integer number of DWDs, so we take the integer part and add one
         # if a random number is less than the fractional part
         n_comp = int(n_comp) + (np.random.uniform() < (n_comp % 1))
@@ -937,7 +938,7 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path):
             n_left_over = int(n_comp - n_loop * loop_length)
             
             gx_component_df = pd.DataFrame()
-            n_comp = int(n_comp / n_loop)
+            n_comp = loop_length
             if ModelParams['verbose']:
                 print(f"Reducing number of DWDs to sample for component {gx_component} by looping {n_loop} times with {n_comp}")
 
