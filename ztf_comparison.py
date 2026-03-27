@@ -155,7 +155,8 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
         if header_row_flag == True: #skip first row of file (headers)
             #using the header row to identify columns
             line_as_list = list(line.split(','))
-            dist_index = line_as_list.index('dist')
+            try: dist_index = line_as_list.index('dist')
+            except ValueError: dist_index = line_as_list.index('RRelkpc')
             m1_index = line_as_list.index('mass1')
             m2_index = line_as_list.index('mass2')
             a_index = line_as_list.index('semiMajor')
