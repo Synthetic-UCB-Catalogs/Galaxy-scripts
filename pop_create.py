@@ -909,6 +909,10 @@ def create_LISA_galaxy(T0_DWD_LISA, N_DWD_Gx, ModelParams, write_path):
     if ModelParams['verbose']:
         import tqdm
 
+    # Build the file prefix from the directory path and code name
+    write_path = os.path.join(write_path, ModelParams['code'])
+    os.makedirs(os.path.dirname(write_path), exist_ok=True)
+
     # Load the radial and vertical distribution parameters for the galaxy components
     ModelRCache = utils.load_Rdicts_from_hdf5('./GalCache/BesanconRData.h5')
     ZCDFDictSet = utils.load_RZdicts_from_hdf5('./GalCache/BesanconRZData.h5')
