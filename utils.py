@@ -249,10 +249,10 @@ def set_paths(ModelParams, overwrite_path=None):
             T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code'] + '_T0.hdf5'  # FilePath to the T0 data file
 
         if ModelParams['create_downsampled_gx'] == True:
-            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code']    # Partial Filepath save the Galaxy DataFrame
+            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type']    # Directory path to save the downsampled Galaxy DataFrame
         else:
             write_path_downsampled = None
-        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type']  # Directory path to save the Galaxy DataFrame
 
     elif ModelParams['run_wave'] == 'mass_transfer_variations':
         var_name = ModelParams['run_sub_type']
@@ -279,10 +279,10 @@ def set_paths(ModelParams, overwrite_path=None):
             T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code'] + '_T0.hdf5'  # FilePath to the T0 data file
 
         if ModelParams['create_downsampled_gx'] == True:
-            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + var_string  # Directory path to save the downsampled Galaxy DataFrame
         else:
             write_path_downsampled = None
-        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + var_string  # Directory path to save the Galaxy DataFrame
     else:
         raise ValueError('Invalid run_wave specified.')
     if not Path(write_path).exists():
@@ -293,12 +293,17 @@ def set_paths(ModelParams, overwrite_path=None):
         return None, None, None
 
     check_path = overwrite_path if overwrite_path is not None else write_path
-    for ext in ['.h5', '.csv']:
-        existing = check_path + '_Galaxy_AllDWDs' + ext
-        if Path(existing).exists():
-            raise FileExistsError(
-                f'Galaxy run already exists at: {existing}\n'
-                f'Delete or move the existing output before re-running.'
-            )
+    paths_to_check = [check_path]
+    if write_path_downsampled is not None:
+        check_path_downsampled = overwrite_path if overwrite_path is not None else write_path_downsampled
+        paths_to_check.append(check_path_downsampled)
+    for path in paths_to_check:
+        for ext in ['.h5', '.csv']:
+            existing = path + '/' + ModelParams['code'] + '_Galaxy_AllDWDs' + ext
+            if Path(existing).exists():
+                raise FileExistsError(
+                    f'Galaxy run already exists at: {existing}\n'
+                    f'Delete or move the existing output before re-running.'
+                )
 
     return T0_dat_path, write_path, write_path_downsampled
