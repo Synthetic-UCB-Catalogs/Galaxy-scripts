@@ -27,7 +27,6 @@ def run_gx(run_wave, run_sub_type, code, dat_path, run_full_galaxy=True, run_dow
     if overwrite_path is not None:
         write_path = overwrite_path
         write_path_downsampled = overwrite_path
-        print(f'Overwriting default write paths with {write_path} and {write_path_downsampled} for full and downsampled galaxy, respectively.')
 
     if T0_dat_path is None:
         print('Skipping due to missing T0 data path.')
@@ -76,10 +75,10 @@ if __name__ == '__main__':
     parser.add_argument('--n_repeats', type=int, default=100, help='Number of repeat runs per code (default: 100).')
     args = parser.parse_args()
 
-    multi = True
+    multi = False
     verbose=False
-    run_full_galaxy = False
-    run_downsampled_galaxy = True
+    run_full_galaxy = True
+    run_downsampled_galaxy = False
     run_waves = ['initial_condition_variations', 'mass_transfer_variations']
     initial_conditions_variations = ['fiducial', 'thermal_ecc', 'uniform_ecc', 
                                      'm2_min_05', 'qmin_01', 'porb_log_uniform']
@@ -90,15 +89,15 @@ if __name__ == '__main__':
     #run_waves = ['initial_condition_variations']
     #initial_conditions_variations = ['fiducial']
     
-    codes = ['COSMIC', 'BSE', 'SEVN_MIST', 'BPASS', 'SeBa', 'COMPAS', 'METISSE']
+    #codes = ['COSMIC', 'BSE', 'SEVN_MIST', 'SeBa', 'COMPAS', 'METISSE']
     #codes = ['COSMIC', 'BSE', 'SeBa']
-    #codes = ['COSMIC']
+    codes = ['ComBinE']
     
     dat_path = Path(args.dat_path) / 'simulated_binary_populations' / 'monte_carlo_comparisons'
     
     missing_paths = []
     args_in = []
-    for rw, subtype in zip(run_waves, [initial_conditions_variations, mass_transfer_variations]):
+    for rw, subtype in zip(run_waves, [initial_conditions_variations]):
         for s in subtype:
             for c in codes:
                 if rw == 'initial_condition_variations':

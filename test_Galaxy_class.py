@@ -63,8 +63,8 @@ if __name__ == '__main__':
             T0_dat_path = ModelParams['dat_path'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code'] + '_T0.hdf5'  # FilePath to the T0 data file
         
         if ModelParams['UseRepresentingWDs'] == True:
-            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
-        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type'] + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+            write_path_downsampled = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type']  # Directory path to save the downsampled Galaxy DataFrame
+        write_path = ModelParams['dat_path'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['run_wave'] + '/' + ModelParams['run_sub_type']  # Directory path to save the Galaxy DataFrame
     
     elif ModelParams['run_wave'] == 'mass_transfer_variations':
         var_name = ModelParams['run_sub_type']
@@ -91,8 +91,8 @@ if __name__ == '__main__':
             T0_dat_path = ModelParams['datPath'] + '/simulated_binary_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['code'] + '_T0.hdf5'  # FilePath to the T0 data file
         
         if ModelParams['UseRepresentingWDs'] == True:
-            write_path_downsampled = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
-        write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string + '/' + ModelParams['code']  # Partial Filepath save the Galaxy DataFrame
+            write_path_downsampled = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons_lightweight_500K_DWDs/' + ModelParams['RunWave'] + '/' + var_string  # Directory path to save the downsampled Galaxy DataFrame
+        write_path = ModelParams['datPath'] + '/simulated_galaxy_populations/monte_carlo_comparisons/' + ModelParams['RunWave'] + '/' + var_string  # Directory path to save the Galaxy DataFrame
     else:
         raise ValueError('Invalid RunWave specified.')
     
