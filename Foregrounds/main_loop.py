@@ -75,11 +75,14 @@ if __name__ == "__main__":
     # Load the first chunk to initialize the data structures
     merged_cat_list = [gwg.utils.load_h5(input_chunk_files[0], key="cat")]
     merged_tdi = gwg.utils.load_h5(input_chunk_files[0], key="tdi")
+    # numpy 2.x marks pandas .T.values views read-only; force a writable copy
+    merged_tdi = {k: np.array(v) for k, v in merged_tdi.items()}
 
     # Loop through the rest of the chunks and aggregate
     for f in input_chunk_files[1:]:
         merged_cat_list.append(gwg.utils.load_h5(f, key="cat"))
         tdi_chunk = gwg.utils.load_h5(f, key="tdi")
+        tdi_chunk = {k: np.array(v) for k, v in tdi_chunk.items()}
         for k in ["A", "E", "T"]:
             merged_tdi[k] += tdi_chunk[k]
     
