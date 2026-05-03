@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# A flexible script to run a specific part of the pipeline locally.
-# It sets the ${EXPERIMENT_ROOT} env variable which is used in the config file.
-# This is helpful if this pipeline is run on an HPC cluster, and the ${EXPERIMENT_ROOT} 
-# can be set in terms of ${SCRATCH}. 
+# Run a Foregrounds pipeline step on a local machine.
+# Sets ${EXPERIMENT_ROOT} (used by config.yaml) to the current directory.
+# For an HPC cluster, write a parallel script (e.g. <cluster>_run.sh) that
+# sets ${EXPERIMENT_ROOT} to the appropriate cluster-side path.
 #
 # Usage:
 # ./local_run.sh <run_code> <script_name>
@@ -26,7 +26,6 @@ RUN_CODE=$1
 SCRIPT_TO_RUN=$2
 
 # --- 2. SETUP: Define the Environment and Prepare the Output Directory ---
-#export EXPERIMENT_ROOT="${SCRATCH}/projects/ucb-catalogs/confusion_test"
 export EXPERIMENT_ROOT="./"
 
 echo "========================================================="
