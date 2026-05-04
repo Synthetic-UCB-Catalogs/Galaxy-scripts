@@ -1,14 +1,15 @@
 """
 Bar plot of resolved DWD sources per binary-evolution code.
 
-Adapted from Galaxy-scripts/lisa_dwd_counter.py: that one reads the raw catalog
-CSVs and counts LISA-band candidates. This one reads our pipeline output
-(${code}_output_cat.h5) and counts the *resolved foreground* — sources actually
-subtracted by gwg.icloop. For context, also prints the LISA-band candidate
-count from the raw catalog (the same number the original plotter would show),
-so the two can be compared per code.
+Adapted from Galaxy-scripts/lisa_dwd_counter.py. That script counts LISA-band
+DWDs from raw catalogs (no confusion noise). This one counts the resolved
+foreground from our pipeline output (with confusion noise), and prints the
+raw LISA count alongside for reference.
 
-Run from Foregrounds/ after main_loop.py has been run for the codes of interest:
+The reference is read from the full catalog, not the lightweight 500K
+downsample, so it stays comparable to standard published values.
+
+Usage:
     python compare_resolved.py
 """
 import os
@@ -29,8 +30,8 @@ def count_resolved(outpath, code):
     return len(gwg.utils.load_h5(fpath, key='cat'))
 
 
-def count_lisa_dwds(basepath, code):
-    fpath = os.path.join(basepath, f'{code}_Galaxy_LISA_DWDs.csv')
+def count_lisa_dwds(data_root, code):
+    fpath = os.path.join(data_root, f'{code}_Galaxy_LISA_DWDs.csv')
     if not os.path.exists(fpath):
         return np.nan
     return len(pd.read_csv(fpath, usecols=[0]))
@@ -41,12 +42,16 @@ if __name__ == "__main__":
     os.environ.setdefault('EXPERIMENT_ROOT', './')
     config = load_and_prepare_config('config.yaml')
     outpath = os.path.join(config['outputpath'], config['datapath'])
-    basepath = os.path.join(config['basepath'], config['datapath'])
+    # always read LISA count from full catalog, even when running on lightweight
+    full_datapath = config['datapath'].replace(
+        'monte_carlo_comparisons_lightweight_500K_DWDs', 'monte_carlo_comparisons'
+    )
+    lisa_data_root = os.path.join(config['basepath'], full_datapath)
 
     counts = {code: count_resolved(outpath, code) for code in CODES}
-    lisa_counts = {code: count_lisa_dwds(basepath, code) for code in CODES}
+    lisa_counts = {code: count_lisa_dwds(lisa_data_root, code) for code in CODES}
 
-    print(f"{'code':8s}  {'LISA cand.':>12s}  {'resolved':>10s}")
+    print(f"{'code':8s}  {'LISA (full)':>12s}  {'resolved':>10s}")
     for code in CODES:
         print(f"{code:8s}  {lisa_counts[code]:>12}  {counts[code]:>10}")
 
