@@ -27,6 +27,8 @@ def count_resolved(outpath, code):
 
 
 if __name__ == "__main__":
+    # local_run.sh sets this; set a sensible default for direct `python compare_resolved.py`
+    os.environ.setdefault('EXPERIMENT_ROOT', './')
     config = load_and_prepare_config('config.yaml')
     outpath = os.path.join(config['outputpath'], config['datapath'])
 
