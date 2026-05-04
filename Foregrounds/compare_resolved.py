@@ -61,12 +61,15 @@ if __name__ == "__main__":
     lisa_counts = {code: count_lisa_dwds(lisa_data_root, code) for code in CODES}
     run_configs = {code: read_run_config(outpath, code) for code in CODES}
 
-    print(f"{'code':8s}  {'Tobs':>4s}  {'dt':>4s}  {'LISA (full)':>12s}  {'resolved':>10s}")
+    print(f"{'code':8s}  {'Tobs':>4s}  {'dt':>4s}  {'LISA (full)':>12s}  {'resolved':>10s}  {'res/LISA':>9s}")
     for code in CODES:
         cfg = run_configs[code]
         tobs = str(cfg.get('duration', '?')) if cfg else '?'
         dt = str(cfg.get('dt', '?')) if cfg else '?'
-        print(f"{code:8s}  {tobs:>4s}  {dt:>4s}  {lisa_counts[code]:>12}  {counts[code]:>10}")
+        lisa_n = lisa_counts[code]
+        res_n = counts[code]
+        ratio_str = f'{res_n / lisa_n * 100:.1f}%' if (pd.notna(lisa_n) and pd.notna(res_n) and lisa_n) else 'nan'
+        print(f"{code:8s}  {tobs:>4s}  {dt:>4s}  {lisa_n:>12}  {res_n:>10}  {ratio_str:>9s}")
 
     fig, ax = plt.subplots(figsize=(8, 5))
     colors = plt.get_cmap('rainbow')(np.linspace(0, 1, len(CODES)))
