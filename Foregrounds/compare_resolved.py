@@ -95,10 +95,6 @@ if __name__ == "__main__":
             ratio_str = f'{res_n / lisa_n * 100:.1f}%' if (pd.notna(lisa_n) and pd.notna(res_n) and lisa_n) else 'nan'
             print(f"{code:8s}  {tobs:>4s}  {dt:>4s}  {lisa_n:>12}  {res_n:>10}  {ratio_str:>9s}")
 
-    # Title strips the trailing variation so it labels the dataset, not one ICV.
-    parts = config['datapath'].rstrip('/').split('/')
-    dataset_label = '/'.join(parts[:-1]) if len(parts) > 1 else config['datapath']
-
     width = 0.7 / len(VARIATIONS)
     colors = plt.get_cmap('gist_rainbow')(np.linspace(0, 1, len(VARIATIONS)))
     xtick_pos = np.linspace(
@@ -120,9 +116,6 @@ if __name__ == "__main__":
                 labeled.add(var)
     ax.set_xticks(xtick_pos)
     ax.set_xticklabels(CODES)
-    ax.set_xlabel('Binary evolution code')
-    ax.set_ylabel('Resolved DWD sources')
-    ax.set_title(f"Resolved foreground per code\n{dataset_label}")
     ax.legend()
     ax.grid(True, linestyle=':', linewidth=1., axis='y')
     ax.yaxis.set_ticks_position('both')
@@ -154,9 +147,7 @@ if __name__ == "__main__":
                 labeled2.add(var)
     ax2.set_xticks(xtick_pos)
     ax2.set_xticklabels(CODES)
-    ax2.set_xlabel('Binary evolution code')
     ax2.set_ylabel('Resolved / LISA-band DWDs [%]')
-    ax2.set_title(f"Recovery fraction per code\n{dataset_label}")
     ax2.set_ylim(0, 100)
     ax2.legend()
     ax2.grid(True, linestyle=':', linewidth=1., axis='y')
