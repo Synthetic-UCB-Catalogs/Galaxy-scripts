@@ -15,6 +15,7 @@ Usage:
 import os
 import numpy as np
 import pandas as pd
+import yaml
 import matplotlib.pyplot as plt
 import gwg
 
@@ -37,6 +38,14 @@ def count_lisa_dwds(data_root, code):
     return len(pd.read_csv(fpath, usecols=[0]))
 
 
+def read_run_config(outpath, code):
+    fpath = os.path.join(outpath, f'{code}_run_config.yaml')
+    if not os.path.exists(fpath):
+        return None
+    with open(fpath) as f:
+        return yaml.safe_load(f)
+
+
 if __name__ == "__main__":
     # local_run.sh sets this; set a sensible default for direct `python compare_resolved.py`
     os.environ.setdefault('EXPERIMENT_ROOT', './')
@@ -50,10 +59,14 @@ if __name__ == "__main__":
 
     counts = {code: count_resolved(outpath, code) for code in CODES}
     lisa_counts = {code: count_lisa_dwds(lisa_data_root, code) for code in CODES}
+    run_configs = {code: read_run_config(outpath, code) for code in CODES}
 
-    print(f"{'code':8s}  {'LISA (full)':>12s}  {'resolved':>10s}")
+    print(f"{'code':8s}  {'Tobs':>4s}  {'dt':>4s}  {'LISA (full)':>12s}  {'resolved':>10s}")
     for code in CODES:
-        print(f"{code:8s}  {lisa_counts[code]:>12}  {counts[code]:>10}")
+        cfg = run_configs[code]
+        tobs = str(cfg.get('duration', '?')) if cfg else '?'
+        dt = str(cfg.get('dt', '?')) if cfg else '?'
+        print(f"{code:8s}  {tobs:>4s}  {dt:>4s}  {lisa_counts[code]:>12}  {counts[code]:>10}")
 
     fig, ax = plt.subplots(figsize=(8, 5))
     colors = plt.get_cmap('rainbow')(np.linspace(0, 1, len(CODES)))

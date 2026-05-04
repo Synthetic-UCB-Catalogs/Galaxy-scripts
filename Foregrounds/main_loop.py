@@ -49,6 +49,7 @@ if __name__ == "__main__":
     wavepath = os.path.join(config['waveformpath'], config['datapath'])
     outpath = os.path.join(config['outputpath'], config['datapath'])
     os.makedirs(outpath, exist_ok=True)
+    shutil.copy('config.yaml', os.path.join(outpath, f'{code}_run_config.yaml'))
 
     # --- Step 1: Clean Up Old Output Files ---
     print("INFO: Cleaning up old output files from previous runs...")
