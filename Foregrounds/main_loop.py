@@ -123,6 +123,7 @@ if __name__ == "__main__":
     icloop_kwargs['snr_thresh2'] = float(icloop_kwargs.pop('snr_cutoff', 7))**2
     icloop_kwargs['deltaf'] = int(icloop_kwargs.pop('window_size', 1000))
     icloop_kwargs['use_gbgpu'] = use_gpu
+    icloop_kwargs['tdi2'] = config.get('tdi2', True)
     if icloop_kwargs.get('doplot', False):
         icloop_kwargs['tag'] = f"{code}_"
     if icloop_kwargs.get('extra_smooth', False):

@@ -88,9 +88,10 @@ def process_chunk(task_info):
 
         # --- Perform the core computation ---
         tdi, cat_out = gwg.generate_data(
-            catalog_chunk, lisa_noise, GB, 
+            catalog_chunk, lisa_noise, GB,
             T=duration, dt=dt, AET=True,
-            batch_size=10000,gbgpu_available=use_gpu
+            batch_size=10000, gbgpu_available=use_gpu,
+            tdi2=config.get('tdi2', True),
         )
 
         # --- Save the output for this chunk ---
