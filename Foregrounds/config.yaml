@@ -8,11 +8,11 @@ waveformpath: "${EXPERIMENT_ROOT}/waveforms"
 #datapath: "monte_carlo_comparisons_lightweight_500K_DWDs/initial_condition_variations/fiducial/"
 datapath: "monte_carlo_comparisons/initial_condition_variations/fiducial/"
 
-num_chunks: 4     # split the hdf5 catalog in a number of chunks
+num_chunks: 3     # split the hdf5 catalog in a number of chunks (3 P6000s on Thorny Flat)
 
-duration: 2       # LISA observation time [years]
-dt: 10            # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
-use_gpu: false
+duration: 4       # LISA observation time [years]
+dt: 5             # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2*dt)
+use_gpu: true
 tdi2: false           # TDI version for both gen_waveforms and icloop. False matches lisatools AET1SensitivityMatrix (TDI1) noise.
 icloop_kwargs:        # kwargs for gwg main loop
   snr_cutoff: 7       # changed notation for convenience; this is converted to kwarg "snr_thresh2=snr_cutoff**2"
@@ -22,7 +22,7 @@ icloop_kwargs:        # kwargs for gwg main loop
   tol: 0.05           # relative change (stopping condition)
   doplot: true        # plots from intermediate iterations are also saved to the output directory
   oversample: 1
-  extra_smooth: true
+  extra_smooth: false
   order: 2000000
 
 
