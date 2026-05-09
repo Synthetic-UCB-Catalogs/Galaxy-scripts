@@ -19,7 +19,7 @@ icloop_kwargs:        # kwargs for gwg main loop
   methoduse: "mean"   # smoothing method: running median or mean
   window_size: 2000   # window size for the smoothing; changed notation for convenience; the kwarg's name "deltaf"
   maxiter: 10         # maximum number of iterations (stopping condition)
-  tol: 0.05           # relative change (stopping condition)
+  tol: 0.01           # relative change (stopping condition)
   doplot: true        # plots from intermediate iterations are also saved to the output directory
   oversample: 1
   extra_smooth: false
