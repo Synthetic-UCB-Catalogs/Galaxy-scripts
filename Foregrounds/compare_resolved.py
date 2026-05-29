@@ -1,22 +1,32 @@
 """
-Bar plot of resolved DWD sources per binary-evolution code.
+Recovery-fraction analysis: resolved (gwg.icloop) / no-foreground reference.
 
-Adapted from Galaxy-scripts/lisa_dwd_counter.py. That script counts LISA-band
-DWDs from raw catalogs (no confusion noise). This one counts the resolved
-foreground from our pipeline output (with confusion noise), and prints the
-raw LISA count alongside for reference.
+For the datapath in config.yaml, this:
+  1. Discovers per-snr_cutoff pipeline runs ({code}_output_cat_snrX.h5, written
+     by main_loop.py), reading each run's snr_cutoff from its saved run_config.
+  2. Loads-or-computes the no-FG reference counts via reference_snr.py
+     (gbgpu per-source + legwork sky-averaged), cached per code in the output
+     folder and tagged by (tobs, dt, tdi). The cache is recomputed if absent,
+     if the tag mismatches, if a needed threshold is missing, or if input_cat.h5
+     is newer than the cache (e.g. after an amplitude/gen_catalog change).
+  3. Plots:
+       figures/recovery_money.png       recovery at SNR>7 per code
+                                        (gbgpu = headline, legwork = faded check)
+       figures/recovery_vs_cutoff.png   recovery vs snr_cutoff per code (gbgpu)
 
-Color is per variation (fiducial, m2_min_05, ...) — same convention as
-`lisa_dwd_count_plotter` upstream. Bars for variations without output yet
-are plotted as NaN so the layout reserves room for them.
+Recovery(code, cutoff X) = resolved_count(run X) / reference[method](SNR>X).
 
-The reference is read from the full catalog, not the lightweight 500K
-downsample, so it stays comparable to standard published values.
+Scope: one datapath (the one in config.yaml) per invocation. Re-point config's
+datapath (or loop externally) for other ICVs. Run from Foregrounds/.
+First run is expensive (computes the reference); later runs read the cache.
 
 Usage:
     python compare_resolved.py
 """
 import os
+import re
+import glob
+
 import numpy as np
 import pandas as pd
 import yaml
@@ -24,137 +34,171 @@ import matplotlib.pyplot as plt
 import gwg
 
 from helpers import load_and_prepare_config
+import reference_snr
 
 CODES = ['BPASS', 'BSE', 'ComBinE', 'COMPAS', 'COSMIC', 'METISSE', 'SeBa', 'SEVN']
-VARIATIONS = ['fiducial', 'm2_min_05', 'porb_log_uniform', 'qmin_01',
-              'thermal_ecc', 'uniform_ecc']
+MONEY_CUTOFF = 7.0
 
 
-def count_resolved(outpath, code):
-    fpath = os.path.join(outpath, f'{code}_output_cat.h5')
-    if not os.path.exists(fpath):
-        return np.nan
-    return len(gwg.utils.load_h5(fpath, key='cat'))
+def _apply_axes_style(ax):
+    ax.grid(True, which="major", linestyle=":", linewidth=1.0)
+    ax.xaxis.set_ticks_position("both")
+    ax.yaxis.set_ticks_position("both")
+    ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=8)
 
 
-def count_lisa_dwds(data_root, code):
-    fpath = os.path.join(data_root, f'{code}_Galaxy_LISA_DWDs.csv')
-    if not os.path.exists(fpath):
-        return np.nan
-    return len(pd.read_csv(fpath, usecols=[0]))
+def discover_runs(outpath, code):
+    """[(cutoff, cat_path, cfg_path)] for each snr-cutoff run of `code`."""
+    runs = []
+    for cat_path in sorted(glob.glob(os.path.join(outpath, f"{code}_output_cat_snr*.h5"))):
+        m = re.search(r"_output_cat_snr([0-9.]+)\.h5$", os.path.basename(cat_path))
+        if not m:
+            continue
+        tag = m.group(1)
+        cfg_path = os.path.join(outpath, f"{code}_run_config_snr{tag}.yaml")
+        runs.append((float(tag), cat_path, cfg_path))
+    return runs
 
 
-def read_run_config(outpath, code):
-    fpath = os.path.join(outpath, f'{code}_run_config.yaml')
-    if not os.path.exists(fpath):
+def resolved_count(cat_path):
+    return len(gwg.utils.load_h5(cat_path, key="cat"))
+
+
+def load_reference(code, config, outpath, inpath, datapath, thresholds, use_gpu):
+    """Return the per-code reference-count DataFrame, from cache or fresh."""
+    cache_path = os.path.join(outpath, f"{code}_reference_counts.csv")
+    input_cat = os.path.join(inpath, f"{code}_input_cat.h5")
+    alldwds = os.path.join(config["basepath"], datapath, f"{code}_Galaxy_AllDWDs.csv")
+    tobs = float(config["duration"])
+    dt = float(config["dt"])
+    tdi = 1 if not config.get("tdi2", False) else 2
+    need = {float(t) for t in thresholds}
+
+    if not os.path.exists(input_cat):
+        print(f"  [{code}] input_cat missing ({input_cat}); skipping")
         return None
-    with open(fpath) as f:
-        return yaml.safe_load(f)
+
+    if os.path.exists(cache_path) and \
+            os.path.getmtime(cache_path) >= os.path.getmtime(input_cat):
+        cache = pd.read_csv(cache_path)
+        tag_ok = len(cache) and bool(
+            ((cache.tobs_yr == tobs) & (cache.dt_s == dt) & (cache.tdi == tdi)).all())
+        have = set(cache.snr_threshold.astype(float))
+        if tag_ok and need.issubset(have):
+            return cache
+        print(f"  [{code}] cache stale (tag/threshold mismatch); recomputing")
+
+    print(f"  [{code}] computing reference (tobs={tobs}, dt={dt}, tdi={tdi}) ...")
+    counts = reference_snr.reference_counts(
+        input_cat, tobs, dt, tdi=tdi, thresholds=sorted(need),
+        use_gpu=use_gpu, alldwds=alldwds, methods=("gbgpu", "legwork"))
+    rows = [
+        {"code": code, "method": method, "tdi": tdi, "tobs_yr": tobs,
+         "dt_s": dt, "snr_threshold": float(thr), "ref_count": c}
+        for method, by_thr in counts.items() for thr, c in by_thr.items()
+    ]
+    cache = pd.DataFrame(rows)
+    cache.to_csv(cache_path, index=False)
+    print(f"  [{code}] reference cached -> {cache_path}")
+    return cache
 
 
-def datapath_for_variation(datapath, variation):
-    parts = datapath.rstrip('/').split('/')
-    parts[-1] = variation
-    return '/'.join(parts) + '/'
+def main():
+    os.environ.setdefault("EXPERIMENT_ROOT", "./")
+    config = load_and_prepare_config("config.yaml")
+    datapath = config["datapath"]
+    outpath = os.path.join(config["outputpath"], datapath)
+    inpath = os.path.join(config["inputpath"], datapath)
+    use_gpu = config.get("use_gpu", False)
+
+    # 1. Discover runs and the set of cutoffs present (= reference thresholds needed).
+    runs_by_code = {c: discover_runs(outpath, c) for c in CODES}
+    cutoffs = sorted({cut for runs in runs_by_code.values() for cut, _, _ in runs})
+    if not cutoffs:
+        print(f"No runs found under {outpath} (expected {{code}}_output_cat_snr*.h5).")
+        return
+    print(f"datapath: {datapath}")
+    print(f"snr_cutoff runs found: {cutoffs}")
+
+    # 2. Build the recovery table: one row per (code, cutoff, method).
+    records = []
+    for code in CODES:
+        runs = runs_by_code[code]
+        if not runs:
+            continue
+        ref = load_reference(code, config, outpath, inpath, datapath, cutoffs, use_gpu)
+        if ref is None:
+            continue
+        for cutoff, cat_path, _cfg in runs:
+            res = resolved_count(cat_path)
+            for method in ref.method.unique():
+                sub = ref[(ref.method == method) & (ref.snr_threshold == cutoff)]
+                if sub.empty:
+                    continue
+                ref_n = int(sub.ref_count.iloc[0])
+                rec = 100.0 * res / ref_n if ref_n > 0 else np.nan
+                records.append({"code": code, "cutoff": cutoff, "method": method,
+                                "resolved": res, "ref_count": ref_n, "recovery_pct": rec})
+    if not records:
+        print("No reference/resolved pairs to plot.")
+        return
+    tab = pd.DataFrame(records)
+
+    print("\n=== recovery table ===")
+    for code in CODES:
+        sub = tab[tab.code == code]
+        if sub.empty:
+            continue
+        print(f"\n{code}:")
+        for _, r in sub.sort_values(["cutoff", "method"]).iterrows():
+            print(f"  cutoff {r.cutoff:g}  {r.method:7s}  resolved={r.resolved:>7d}  "
+                  f"ref={r.ref_count:>7d}  recovery={r.recovery_pct:5.1f}%")
+
+    os.makedirs("figures", exist_ok=True)
+
+    # 3a. Money figure: recovery at SNR>7 per code (gbgpu headline, legwork faded).
+    money = tab[tab.cutoff == MONEY_CUTOFF]
+    if not money.empty:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        present = [c for c in CODES if c in set(money.code)]
+        x = np.arange(len(present))
+        w = 0.38
+        for method, dx, alpha, lbl in [("gbgpu", -w / 2, 1.0, "gbgpu-ref (per-source)"),
+                                       ("legwork", w / 2, 0.4, "legwork-ref (sky-avg)")]:
+            vals = [money[(money.code == c) & (money.method == method)].recovery_pct.mean()
+                    for c in present]
+            ax.bar(x + dx, vals, w, alpha=alpha, edgecolor="black", label=lbl)
+        ax.set_xticks(x)
+        ax.set_xticklabels(present)
+        ax.set_ylabel(r"Recovery at SNR$>$7  [\%]" if plt.rcParams.get("text.usetex")
+                      else "Recovery at SNR>7 [%]")
+        ax.set_ylim(0, 100)
+        ax.legend(loc="upper right")
+        _apply_axes_style(ax)
+        fig.tight_layout()
+        fig.savefig(os.path.join("figures", "recovery_money.png"), dpi=150)
+        print("\nsaved figures/recovery_money.png")
+
+    # 3b. Uncertainty figure: recovery vs snr_cutoff per code (gbgpu reference).
+    gb = tab[tab.method == "gbgpu"]
+    if not gb.empty and len(cutoffs) > 1:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        for code in CODES:
+            sub = gb[gb.code == code].sort_values("cutoff")
+            if sub.empty:
+                continue
+            ax.plot(sub.cutoff, sub.recovery_pct, marker="o", label=code)
+        ax.set_xlabel("SNR cutoff")
+        ax.set_ylabel("Recovery [%] (gbgpu reference)")
+        ax.set_ylim(0, 100)
+        ax.legend(loc="best", ncol=2, fontsize=9)
+        _apply_axes_style(ax)
+        fig.tight_layout()
+        fig.savefig(os.path.join("figures", "recovery_vs_cutoff.png"), dpi=150)
+        print("saved figures/recovery_vs_cutoff.png")
+    elif len(cutoffs) <= 1:
+        print("(only one snr_cutoff present — run more cutoffs for the uncertainty figure)")
 
 
 if __name__ == "__main__":
-    # local_run.sh sets this; set a sensible default for direct `python compare_resolved.py`
-    os.environ.setdefault('EXPERIMENT_ROOT', './')
-    config = load_and_prepare_config('config.yaml')
-
-    # Read counts for every (code, variation) pair; missing files → NaN.
-    counts = {}
-    lisa_counts = {}
-    run_configs = {}
-    for var in VARIATIONS:
-        var_datapath = datapath_for_variation(config['datapath'], var)
-        # always read LISA count from full catalog, even when running on lightweight
-        var_lisa_datapath = datapath_for_variation(
-            config['datapath'].replace('_lightweight_500K_DWDs', ''), var
-        )
-        outpath_var = os.path.join(config['outputpath'], var_datapath)
-        lisa_root_var = os.path.join(config['basepath'], var_lisa_datapath)
-        for code in CODES:
-            counts[(code, var)] = count_resolved(outpath_var, code)
-            lisa_counts[(code, var)] = count_lisa_dwds(lisa_root_var, code)
-        run_configs[var] = {code: read_run_config(outpath_var, code) for code in CODES}
-
-    # Print one table per variation that has any resolved output.
-    available_vars = [v for v in VARIATIONS
-                      if any(pd.notna(counts[(c, v)]) for c in CODES)]
-    for var in available_vars:
-        print(f"\n=== {var} ===")
-        print(f"{'code':8s}  {'Tobs':>4s}  {'dt':>4s}  {'LISA (full)':>12s}  {'resolved':>10s}  {'res/LISA':>9s}")
-        for code in CODES:
-            cfg = run_configs[var].get(code)
-            tobs = str(cfg.get('duration', '?')) if cfg else '?'
-            dt = str(cfg.get('dt', '?')) if cfg else '?'
-            lisa_n = lisa_counts[(code, var)]
-            res_n = counts[(code, var)]
-            ratio_str = f'{res_n / lisa_n * 100:.1f}%' if (pd.notna(lisa_n) and pd.notna(res_n) and lisa_n) else 'nan'
-            print(f"{code:8s}  {tobs:>4s}  {dt:>4s}  {lisa_n:>12}  {res_n:>10}  {ratio_str:>9s}")
-
-    width = 0.7 / len(VARIATIONS)
-    colors = plt.get_cmap('gist_rainbow')(np.linspace(0, 1, len(VARIATIONS)))
-    xtick_pos = np.linspace(
-        (len(VARIATIONS) / 2 - 0.5) * width,
-        len(CODES) - 1 + (len(VARIATIONS) / 2 - 0.5) * width,
-        len(CODES),
-    )
-
-    # ----- Resolved counts -----
-    fig, ax = plt.subplots(figsize=(10, 5))
-    labeled = set()
-    for i, code in enumerate(CODES):
-        for j, var in enumerate(VARIATIONS):
-            val = counts[(code, var)]
-            label = var if (var not in labeled and pd.notna(val)) else None
-            ax.bar(i + j * width, val, width, color=colors[j],
-                   edgecolor='black', label=label)
-            if label:
-                labeled.add(var)
-    ax.set_xticks(xtick_pos)
-    ax.set_xticklabels(CODES)
-    ax.legend()
-    ax.grid(True, linestyle=':', linewidth=1., axis='y')
-    ax.yaxis.set_ticks_position('both')
-    ax.tick_params('both', length=3, width=0.5, which='both', direction='in', pad=10)
-
-    fig.tight_layout()
-    os.makedirs('figures', exist_ok=True)
-    figpath = os.path.join('figures', 'compare_resolved.png')
-    fig.savefig(figpath, dpi=150)
-    print(f"\nFigure saved to {figpath}")
-
-    # ----- Recovery fraction (resolved / LISA, percent) with sqrt(N) error bars -----
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    labeled2 = set()
-    for i, code in enumerate(CODES):
-        for j, var in enumerate(VARIATIONS):
-            res_n = counts[(code, var)]
-            lisa_n = lisa_counts[(code, var)]
-            if pd.notna(res_n) and pd.notna(lisa_n) and lisa_n > 0 and res_n > 0:
-                ratio = res_n / lisa_n * 100
-                err = np.sqrt(res_n) / lisa_n * 100
-            else:
-                ratio = np.nan
-                err = 0.0  # NaN here triggers a matplotlib warning; bar is NaN anyway
-            label = var if (var not in labeled2 and pd.notna(ratio)) else None
-            ax2.bar(i + j * width, ratio, width, color=colors[j], edgecolor='black',
-                    yerr=err, capsize=4, ecolor='black', label=label)
-            if label:
-                labeled2.add(var)
-    ax2.set_xticks(xtick_pos)
-    ax2.set_xticklabels(CODES)
-    ax2.set_ylabel('Resolved / LISA-band DWDs [%]')
-    ax2.set_ylim(0, 100)
-    ax2.legend()
-    ax2.grid(True, linestyle=':', linewidth=1., axis='y')
-    ax2.yaxis.set_ticks_position('both')
-    ax2.tick_params('both', length=3, width=0.5, which='both', direction='in', pad=10)
-
-    fig2.tight_layout()
-    figpath2 = os.path.join('figures', 'compare_recovery.png')
-    fig2.savefig(figpath2, dpi=150)
-    print(f"Figure saved to {figpath2}")
+    main()
