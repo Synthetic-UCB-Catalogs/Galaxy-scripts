@@ -32,13 +32,13 @@ import os
 import numpy as np
 import pandas as pd
 
+from helpers import Constants  # use the SAME year as the pipeline (gen_waveforms/main_loop)
+
 try:
     from tqdm import tqdm as _tqdm
 except ImportError:                      # tqdm optional; fall back to a no-op
     def _tqdm(iterable, **kwargs):
         return iterable
-
-YR_S = 31558149.763545603   # sidereal year [s]
 
 
 def _to_numpy(x):
@@ -88,7 +88,7 @@ def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
     from gbgpu.gbgpu import GBGPU
     gb = GBGPU(use_gpu=use_gpu)
     psd = _instrument_psd_fn(tdi)
-    T_sec = tobs * YR_S
+    T_sec = tobs * Constants.yr
     df_bin = 1.0 / T_sec
 
     cols = ("Amplitude", "Frequency", "FrequencyDerivative", "InitialPhase",
@@ -144,7 +144,8 @@ def per_source_snr_legwork(alldwds_df, tobs, batch=200000):
         m_c = lutils.chirp_mass(m1[sl] * u.Msun, m2[sl] * u.Msun)
         f_orb = (1.0 / (period_hr[sl] * u.hr)).to(u.Hz)
         s = lsnr.snr_circ_stationary(
-            m_c=m_c, f_orb=f_orb, dist=dist[sl] * u.kpc, t_obs=tobs * u.yr,
+            m_c=m_c, f_orb=f_orb, dist=dist[sl] * u.kpc,
+            t_obs=(tobs * Constants.yr) * u.s,   # same T_obs seconds as the pipeline
             instrument="LISA", confusion_noise=None,
         )
         snr[sl] = np.asarray(s, dtype=np.float64)
