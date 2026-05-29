@@ -57,8 +57,9 @@ if __name__ == "__main__":
     RRel = df.RRelkpc.values.copy()  # kpc
     RRel = RRel * Constants.pc*1e+3   # s
 
-    # G = c = 1
-    A = Mchirp**(5./3) * ff**(2./3) / RRel
+    # G = c = 1. LDC/FastGB amplitude convention expected by gbgpu.run_wave
+    # (see gbgpu.utils.get_amplitude): A = 2 Mc^(5/3) (pi f_GW)^(2/3) / d.
+    A = 2 * Mchirp**(5./3) * (np.pi*ff)**(2./3) / RRel
 
     size = A.size
     incl = np.arccos(-1 + 2*rng.random(size=size))
