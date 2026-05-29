@@ -134,7 +134,20 @@ if __name__ == "__main__":
     # --- Verification and Cleanup ---
     # We now check against a "finished" flag instead of a single file hash
     finished_flag_path = os.path.join(wavepath, f'{code}_FINISHED.flag')
-    current_config_hash = get_file_hash('config.yaml')
+    # Cache key = WAVEFORM-relevant inputs only: the catalog-generation code
+    # (gen_catalog.py + helpers.py) plus the config fields that change the
+    # waveforms. Deliberately EXCLUDES icloop_kwargs (snr_cutoff/maxiter/tol/
+    # window_size) so sweeping the main-loop threshold does NOT force an
+    # expensive waveform regeneration. (A code change to gen_catalog.py — e.g.
+    # the amplitude convention — DOES change this hash and triggers a regen.)
+    import hashlib
+    _h = hashlib.sha256()
+    for _f in ('gen_catalog.py', 'helpers.py'):
+        _h.update(get_file_hash(_f).encode())
+    _relevant = '|'.join(str(config.get(k)) for k in
+                         ('duration', 'dt', 'tdi2', 'datapath', 'seed'))
+    _h.update(_relevant.encode())
+    current_config_hash = _h.hexdigest()
 
     if os.path.exists(finished_flag_path):
         with open(finished_flag_path, 'r') as f:
@@ -255,75 +268,3 @@ if __name__ == "__main__":
     else:
         print("ERROR: One or more chunks failed to process. Please check the logs.")
 
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--code', type=str, required=True, help='Name of the code to use.')
-#     args = parser.parse_args()
-#     code = args.code
-
-#     config = load_and_prepare_config('config.yaml')
-
-#     wavepath = os.path.join(config['waveformpath'], config['datapath'])
-#     os.makedirs(wavepath, exist_ok=True)
-
-#     # --- Verification Logic ---
-#     waveform_filepath = os.path.join(wavepath, f'{code}_waveform_cat.h5')
-#     config_hash_path = os.path.join(wavepath, f'{code}_config.sha256')
-
-#     current_config_hash = get_file_hash('config.yaml')
-
-#     if os.path.exists(waveform_filepath):
-#         if os.path.exists(config_hash_path):
-#             with open(config_hash_path, 'r') as f:
-#                 previous_config_hash = f.read()
-#             if previous_config_hash == current_config_hash:
-#                 print(f"Waveform file '{waveform_filepath}' has already been generated for the current config.")
-#                 sys.exit()
-
-#     catname = f'{code}_input_cat.h5'
-#     filepath = os.path.join(
-#         config['inputpath'], config['datapath'], catname
-#     )
-#     cat = gwg.utils.load_h5(filepath, key="cat")
-
-#     duration = Constants.yr * float(config['duration'])
-#     dt = float(config['dt'])
-#     df = 1/duration  # The frequency resolution
-
-#     # Define the frequency vector depending on the duration (not really needed here,
-#     # but necessary for the definition for the LISA noise function)
-#     ndata = int(duration/dt)
-#     F     = df*int((ndata+1)/2)
-#     fvec  = np.arange(0, F, df) # make the positive frequency vector
-
-#     return_type = 'PSD'
-#     sens_kwargs = dict(
-#         stochastic_params=None,
-#         model=lisa_models.scirdv1,
-#         return_type=return_type
-#     )
-#     sens_mat = AET1SensitivityMatrix(fvec[1:], **sens_kwargs)
-#     lisa_noise = {}
-#     labels = ['A', 'E', 'T']
-#     lisa_noise['f'] = fvec[1:]
-#     for k,label in enumerate(labels):
-#         lisa_noise[label] = sens_mat[k]
-
-
-#     # One can split the cat in several pieces to parallelize this call
-#     orbits = lisa_models.EqualArmlengthOrbits(use_gpu=config['use_gpu'])
-#     GB = GBGPU(orbits=orbits, use_gpu=config['use_gpu'])
-#     tdi, cat = gwg.generate_data(cat, lisa_noise, GB, T=duration, dt=dt, AET=True)
-
-#     # Save the data
-#     gwg.utils.to_h5(
-#         waveform_filepath, 
-#         cat=cat, tdi=tdi
-#     )
-
-#     # Save the config hash for future verification
-#     with open(config_hash_path, 'w') as f:
-#         f.write(current_config_hash)
-
-
-    

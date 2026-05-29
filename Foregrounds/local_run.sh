@@ -11,14 +11,16 @@
 # Examples:
 # ./local_run.sh COSMIC gen_catalog.py
 # ./local_run.sh COSMIC main_loop.py
+# ./local_run.sh COSMIC main_loop.py --snr-cutoff 5   # sweep cutoff w/o editing config
 
 set -e
 
 # --- 1. VALIDATE INPUT ARGUMENTS ---
-if [ "$#" -ne 2 ]; then
+if [ "$#" -lt 2 ]; then
     echo "ERROR: Incorrect number of arguments."
-    echo "Usage: $0 <run_code> <script_name>"
+    echo "Usage: $0 <run_code> <script_name> [extra args forwarded to the script]"
     echo "Available scripts: gen_catalog.py, gen_waveforms.py, main_loop.py"
+    echo "Example: $0 COSMIC main_loop.py --snr-cutoff 5"
     exit 1
 fi
 
@@ -54,7 +56,8 @@ case "${SCRIPT_TO_RUN}" in
 
     main_loop.py)
         echo "--- Running Main Loop ---"
-        python main_loop.py --code "${RUN_CODE}"
+        # forward any extra args (e.g. --snr-cutoff) to main_loop
+        python main_loop.py --code "${RUN_CODE}" "${@:3}"
         ;;
 
     *)

@@ -37,10 +37,15 @@ from helpers import Constants, apply_global_plot_settings, load_and_prepare_conf
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--code', type=str, required=True, help='Name of the code to use.')
+    parser.add_argument('--snr-cutoff', type=float, default=None,
+                        help='override icloop_kwargs.snr_cutoff from config; lets each '
+                             'queued run sweep a cutoff without editing the shared config.yaml')
     args = parser.parse_args()
     code = args.code
 
     config = load_and_prepare_config('config.yaml')
+    if args.snr_cutoff is not None:
+        config['icloop_kwargs']['snr_cutoff'] = args.snr_cutoff
     with open('plot_config.yaml', 'r') as f:
         plot_settings = yaml.safe_load(f)
         
@@ -49,16 +54,22 @@ if __name__ == "__main__":
     wavepath = os.path.join(config['waveformpath'], config['datapath'])
     outpath = os.path.join(config['outputpath'], config['datapath'])
     os.makedirs(outpath, exist_ok=True)
-    shutil.copy('config.yaml', os.path.join(outpath, f'{code}_run_config.yaml'))
+    # Suffix per-run outputs with the SNR cutoff so runs at different snr_cutoff
+    # don't overwrite each other in the shared output folder.
+    snr_cutoff = config['icloop_kwargs'].get('snr_cutoff', 7)
+    run_tag = f"snr{snr_cutoff:g}"
+    # Snapshot the EFFECTIVE config (including any --snr-cutoff override) for the record.
+    with open(os.path.join(outpath, f'{code}_run_config_{run_tag}.yaml'), 'w') as f:
+        yaml.safe_dump(config, f, sort_keys=False)
 
     # --- Step 1: Clean Up Old Output Files ---
     print("INFO: Cleaning up old output files from previous runs...")
     # Clean up the main output .h5 file
-    final_output_path = os.path.join(outpath, f'{code}_output_cat.h5')
+    final_output_path = os.path.join(outpath, f'{code}_output_cat_{run_tag}.h5')
     if os.path.exists(final_output_path):
         os.remove(final_output_path)
     
-    plot_pattern_to_clean = os.path.join(outpath, f'{code}_iter*.pdf')
+    plot_pattern_to_clean = os.path.join(outpath, f'{code}_{run_tag}_iter*.pdf')
     old_plots = glob.glob(plot_pattern_to_clean)
     if old_plots:
         print(f"INFO: Removing {len(old_plots)} old iteration plots from the output directory...")
@@ -125,7 +136,7 @@ if __name__ == "__main__":
     icloop_kwargs['use_gbgpu'] = use_gpu
     icloop_kwargs['tdi2'] = config.get('tdi2', True)
     if icloop_kwargs.get('doplot', False):
-        icloop_kwargs['tag'] = f"{code}_"
+        icloop_kwargs['tag'] = f"{code}_{run_tag}_"
     if icloop_kwargs.get('extra_smooth', False):
         icloop_kwargs['order'] = int(icloop_kwargs.get('order', 20000))
 
@@ -153,7 +164,7 @@ if __name__ == "__main__":
     final_cat_with_snr['snr'] = np.sqrt(final_cat['snr2'])
     print(f"INFO: Final resolved catalog has {len(final_cat_with_snr)} sources.")
 
-    final_output_path = os.path.join(outpath, f'{code}_output_cat.h5')
+    final_output_path = os.path.join(outpath, f'{code}_output_cat_{run_tag}.h5')
     gwg.utils.to_h5(final_output_path, cat=final_cat_with_snr, tdi=AET, S=S1)
     print(f"INFO: Final merged data saved to {final_output_path}")
 
@@ -191,7 +202,7 @@ if __name__ == "__main__":
     ax.tick_params('both', length=3, width=0.5, which='both', direction='in', pad=10)
 
     fig.tight_layout()
-    plot_filename = os.path.join(outpath, f'{code}_tdi_noise.png')
+    plot_filename = os.path.join(outpath, f'{code}_{run_tag}_tdi_noise.png')
     fig.savefig(plot_filename, dpi=plot_settings['dpi'])
     print(f"INFO: Final plot saved to {plot_filename}")
 
