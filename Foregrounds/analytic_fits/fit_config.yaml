@@ -1,0 +1,21 @@
+# fit_config.yaml -- defaults for fit_confusion.py (any CLI flag overrides these).
+
+# analytic model + channels
+model: karnesis        # karnesis (Eq.6, gwg-lineage) | robson (Eq.14, LEGWORK form)
+channels: [A, E]       # fit A and E jointly (T carries ~no galactic confusion)
+
+# preprocessing of the saved residual into the fit curve
+window: 2000           # running-median window [bins]; match config.yaml icloop_kwargs.window_size
+fmax_crop: 0.02        # crop residual to f <= this before median-filtering [Hz] (speed only)
+conf_floor: 1.3        # fit only bins where median total > conf_floor * instrument
+fmin: null             # fit band low edge [Hz]; null -> inferred from the curve
+fmax: null             # fit band high edge [Hz]; null -> inferred from the curve
+log_sigma: 0.05        # log10-PSD scatter assumed in the Gaussian likelihood
+
+# emcee sampler
+nwalkers: 32
+nsteps: 5000
+nburn: 1500
+nproc: null            # CPU workers; null = auto-detect (SLURM allocation / available cores); 1 = serial
+
+out: fits              # output directory for coefficients + plots
