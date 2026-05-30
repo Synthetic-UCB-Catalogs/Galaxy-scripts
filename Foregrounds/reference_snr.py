@@ -123,12 +123,15 @@ def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
     return snr
 
 
-def per_source_snr_legwork(alldwds_df, tobs, batch=200000):
-    """Per-source no-FG SNR with LEGWORK (sky/pol/inclination-AVERAGED, no confusion).
+def per_source_snr_legwork(alldwds_df, tobs, confusion=None, batch=200000):
+    """Per-source SNR with LEGWORK (sky/pol/inclination-AVERAGED).
 
     Reads physical params from a *_Galaxy_AllDWDs.csv frame: mass1, mass2 [Msun],
     RRelkpc [kpc], PSetTodayHours [hr] (orbital period). Uses snr_circ_stationary
-    with confusion_noise=None (NOT Source.get_snr, whose default folds in robson19).
+    (NOT Source.get_snr) with confusion_noise=`confusion`:
+      - confusion=None        -> instrument-only (no-FG); the recovery denominator.
+      - confusion="robson19"  -> LEGWORK galactic foreground ON; reproduces the
+        *_Galaxy_LISA_DWDs.csv counts (those were built with get_snr's robson19 default).
     """
     import astropy.units as u
     import legwork.snr as lsnr
@@ -151,15 +154,22 @@ def per_source_snr_legwork(alldwds_df, tobs, batch=200000):
         s = lsnr.snr_circ_stationary(
             m_c=m_c, f_orb=f_orb, dist=dist[sl] * u.kpc,
             t_obs=(tobs * Constants.yr) * u.s,   # same T_obs seconds as the pipeline
-            instrument="LISA", confusion_noise=None,
+            instrument="LISA", confusion_noise=confusion,
         )
         snr[sl] = np.asarray(s, dtype=np.float64)
     return snr
 
 
 def reference_counts(input_cat, tobs, dt, tdi=1, thresholds=(5, 6, 7, 8, 9),
-                     use_gpu=False, alldwds=None, methods=("gbgpu", "legwork")):
-    """Return {method: {threshold: count}} of no-FG sources above each threshold."""
+                     use_gpu=False, alldwds=None, methods=("gbgpu", "legwork"),
+                     legwork_confusion=None):
+    """Return {method: {threshold: count}} of sources above each threshold.
+
+    References are no-foreground (the recovery denominator) EXCEPT the legwork method
+    honors `legwork_confusion` (None = no-FG; "robson19" reproduces the CSV LISA_DWDs
+    counts). Leave None for the recovery analysis; set "robson19" only to verify the
+    CSV-vs-no-FG discrepancy.
+    """
     out = {}
     if "gbgpu" in methods:
         cat = pd.read_hdf(input_cat, key="cat")
@@ -171,7 +181,7 @@ def reference_counts(input_cat, tobs, dt, tdi=1, thresholds=(5, 6, 7, 8, 9),
         else:
             try:
                 df = pd.read_csv(alldwds)
-                snr = per_source_snr_legwork(df, tobs)
+                snr = per_source_snr_legwork(df, tobs, confusion=legwork_confusion)
                 out["legwork"] = {float(t): int((snr > t).sum()) for t in thresholds}
             except ImportError as e:
                 print(f"WARNING: legwork not installed; skipping legwork cross-check ({e}). "
@@ -190,18 +200,24 @@ def main():
     ap.add_argument("--gpu", action="store_true")
     ap.add_argument("--thresholds", default="5,6,7,8,9")
     ap.add_argument("--methods", default="gbgpu,legwork")
+    ap.add_argument("--legwork-confusion", default="none",
+                    help="legwork confusion model: 'none' (no-FG, default) or 'robson19' "
+                         "(reproduces the CSV LISA_DWDs counts — verification only)")
     ap.add_argument("--out", default=None, help="CSV to append results to")
     args = ap.parse_args()
 
     code = args.code or os.path.basename(args.input_cat).replace("_input_cat.h5", "")
     thresholds = [float(t) for t in args.thresholds.split(",")]
     methods = tuple(m.strip() for m in args.methods.split(","))
+    legwork_confusion = (None if args.legwork_confusion.lower() in ("none", "", "null")
+                         else args.legwork_confusion)
 
     print(f"[{code}] T_obs={args.tobs} yr, dt={args.dt} s, TDI{args.tdi}, "
-          f"gpu={args.gpu}, methods={methods}")
+          f"gpu={args.gpu}, methods={methods}, legwork_confusion={legwork_confusion}")
     counts = reference_counts(args.input_cat, args.tobs, args.dt, tdi=args.tdi,
                               thresholds=thresholds, use_gpu=args.gpu,
-                              alldwds=args.alldwds, methods=methods)
+                              alldwds=args.alldwds, methods=methods,
+                              legwork_confusion=legwork_confusion)
 
     rows = []
     for method, by_thr in counts.items():
