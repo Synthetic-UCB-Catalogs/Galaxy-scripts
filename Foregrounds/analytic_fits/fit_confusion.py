@@ -121,6 +121,37 @@ BOUNDS = {
 }
 
 
+# ------------------------------------------------------------- coarse-graining
+def coarse_grain(f, S, fmin, fmax, n_per_decade=250, sigma_floor=0.05):
+    """Log-bin the in-band curve into ~uncorrelated points (Karnesis-style).
+
+    The median curve is window-correlated (~2000-bin filter), so fitting every bin
+    as independent overcounts information and shrinks the error bars. We bin to
+    ~n_per_decade log-spaced bins and fit one point per bin. Returns (fb, {k: Sb},
+    {k: sigma}): geometric bin centres, the per-bin mean of log10(S) back in linear,
+    and the std of log10(S) within the bin (the local scatter) floored at sigma_floor.
+    Bins with <2 samples are dropped.
+    """
+    if f.size == 0 or fmax <= fmin:
+        empty = np.array([])
+        return empty, {k: empty for k in S}, {k: empty for k in S}
+    nbins = max(int(np.ceil(n_per_decade * np.log10(fmax / fmin))), 4)
+    edges = np.logspace(np.log10(fmin), np.log10(fmax), nbins + 1)
+    which = np.digitize(f, edges)
+    fb, Sb, sig = [], {k: [] for k in S}, {k: [] for k in S}
+    for b in range(1, nbins + 1):
+        sel = which == b
+        if sel.sum() < 2:
+            continue
+        fb.append(10 ** np.mean(np.log10(f[sel])))
+        for k in S:
+            logS = np.log10(S[k][sel])
+            Sb[k].append(10 ** np.mean(logS))
+            sig[k].append(max(float(np.std(logS)), sigma_floor))
+    fb = np.asarray(fb)
+    return fb, {k: np.asarray(v) for k, v in Sb.items()}, {k: np.asarray(v) for k, v in sig.items()}
+
+
 # ----------------------------------------------------------------- likelihood
 # The likelihood payload lives in a module global so emcee's multiprocessing pool
 # workers read the (large) data arrays without re-pickling them on every call:
@@ -146,28 +177,37 @@ def _log_prob(theta):
     ll = 0.0
     for k in F["channels"]:
         resid = F["logSd"][k] - np.log10(F["Im"][k] + conf)
-        ll += -0.5 * np.sum((resid / F["log_sigma"]) ** 2)
+        ll += -0.5 * np.sum((resid / F["logSig"][k]) ** 2)
     return ll if np.isfinite(ll) else -np.inf
 
 
 # ------------------------------------------------------------------- plotting
 def plot_curves(out_png, f, Smed, fS, Ssaved, instr, channel, fmin, fmax,
-                model_curve=None, model_label="fit"):
-    """Overlay: median total (fit input), pipeline mean total, instrument, optional fit."""
+                model_curve=None, model_label="fit", binned=None):
+    """Overlay: median total (fit input), pipeline mean total, instrument, the
+    coarse-grained fit points, and an optional fitted model."""
+    xlo, xhi = 1e-4, 2e-2
     with plt.rc_context({"font.size": 12, "axes.labelsize": 14, "xtick.labelsize": 12,
                          "ytick.labelsize": 12, "legend.fontsize": 11}):
         fig, ax = plt.subplots(figsize=(9, 6))
-        ax.loglog(f, Smed[channel], color="0.5", lw=1.2,
-                  label=f"median total ({channel}) [fit input]")
+        ax.loglog(f, Smed[channel], color="0.6", lw=1.0, label=f"median total ({channel})")
         if Ssaved is not None and channel in Ssaved:
-            ax.loglog(fS, Ssaved[channel], color="orange", lw=0.8, alpha=0.8,
+            ax.loglog(fS, Ssaved[channel], color="orange", lw=0.7, alpha=0.7,
                       label=f"pipeline mean total ({channel})")
         ax.loglog(f, instr[channel], "k--", lw=1.5, label="instrument (TDI1)")
+        if binned is not None:
+            fb, Sb, sg = binned
+            ax.errorbar(fb, Sb, yerr=[Sb - Sb * 10 ** (-sg), Sb * 10 ** sg - Sb],
+                        fmt=".", ms=4, color="C0", lw=0.7, capsize=2, zorder=5,
+                        label="coarse-grained (fit pts)")
         if model_curve is not None:
-            ax.loglog(f, model_curve, "r", lw=2, label=model_label)
+            ax.loglog(f, model_curve, "r", lw=2, zorder=6, label=model_label)
         ax.axvspan(fmin, fmax, color="b", alpha=0.06)
-        ax.set_xlim(1e-4, 2e-2)
-        ax.set_ylim(max(instr[channel].min() * 0.3, 1e-44), float(np.nanmax(Smed[channel])) * 3)
+        ax.set_xlim(xlo, xhi)
+        view = (f >= xlo) & (f <= xhi)               # scale y to the in-view curve, not the
+        ymax = float(np.nanmax(Smed[channel][view]))  # low-f instrument blow-up out of frame
+        ymin = max(float(np.nanmin(instr[channel][view])) * 0.5, 1e-44)
+        ax.set_ylim(ymin, ymax * 3)
         ax.set_xlabel(r"Frequency [Hz]")
         ax.set_ylabel(r"PSD [1/Hz]")
         ax.legend(loc="upper right")
@@ -235,8 +275,10 @@ def main():
                     help="crop residual to f<=this before median-filtering (speed only; keep >> the knee)")
     ap.add_argument("--conf-floor", type=float, default=cfg.get("conf_floor", 1.3),
                     help="restrict the fit to bins where median total > this * instrument (confusion-dominated)")
+    ap.add_argument("--n-per-decade", type=int, default=cfg.get("n_per_decade", 250),
+                    help="log-bins per frequency decade for coarse-graining the fit curve")
     ap.add_argument("--log-sigma", type=float, default=cfg.get("log_sigma", 0.05),
-                    help="log10-PSD scatter for the Gaussian likelihood")
+                    help="floor on the per-bin log10-PSD scatter used as the Gaussian sigma")
     ap.add_argument("--nwalkers", type=int, default=cfg.get("nwalkers", 32))
     ap.add_argument("--nsteps", type=int, default=cfg.get("nsteps", 5000))
     ap.add_argument("--nburn", type=int, default=cfg.get("nburn", 1500))
@@ -284,33 +326,38 @@ def main():
           f"confusion-dominated fit band [{fmin:.2e}, {fmax:.2e}] Hz ({mask.sum()} bins), "
           f"channels {channels}, model {args.model}")
 
-    # --- preprocessing-only diagnostic: median vs pipeline-mean curve, then exit ---
+    # --- coarse-grain the confusion-dominated band to ~uncorrelated log points ---
+    fb, Sb, sigb = coarse_grain(f[mask], {k: Smed[k][mask] for k in channels}, fmin, fmax,
+                                n_per_decade=args.n_per_decade, sigma_floor=args.log_sigma)
+    Imb = instrument_aet(fb) if fb.size else {k: np.array([]) for k in channels}
+    binned = (fb, Sb[ref], sigb[ref]) if fb.size else None
+    print(f"[{code}] coarse-grained to {fb.size} log-bins (~{args.n_per_decade}/decade) "
+          f"from {int(mask.sum())} median bins")
+
+    # --- preprocessing-only diagnostic: curves + coarse-grained points, then exit ---
     if args.preprocess_only:
         out_png = os.path.join(args.out, f"{code}_confusion_preprocess.png")
-        plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax)
+        plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax, binned=binned)
         print(f"[{code}] preprocess-only: wrote median-vs-mean comparison, skipping fit.")
         return
 
-    if mask.sum() < 50:
-        raise SystemExit(f"[{code}] only {mask.sum()} bins in the confusion-dominated band; "
-                         f"loosen --conf-floor or set --fmin/--fmax.")
-    fm = f[mask]
-    Sd = {k: Smed[k][mask] for k in channels}
-    Im = {k: instr[k][mask] for k in channels}
+    if fb.size < 10:
+        raise SystemExit(f"[{code}] only {fb.size} coarse bins; loosen the band/--conf-floor "
+                         f"or lower --n-per-decade.")
 
     # --- emcee ---
     try:
         import emcee
     except ImportError:
-        raise SystemExit("emcee not installed. In the env:  pip install emcee corner")
+        raise SystemExit("emcee not installed. In the env:  conda install -c conda-forge emcee corner")
     import multiprocessing as mp
 
     init = INIT[args.model]
     p0 = np.array(init["theta"], dtype=np.float64)
     ndim = len(p0)
-    payload = dict(f=fm, Im=Im, logSd={k: np.log10(Sd[k]) for k in channels},
-                   channels=channels, model=args.model, log_sigma=args.log_sigma,
-                   bounds=BOUNDS[args.model])
+    payload = dict(f=fb, Im=Imb, logSd={k: np.log10(Sb[k]) for k in channels},
+                   logSig={k: sigb[k] for k in channels},
+                   channels=channels, model=args.model, bounds=BOUNDS[args.model])
 
     rng = np.random.default_rng(0)
     pos = p0 * (1.0 + 1e-3 * rng.standard_normal((args.nwalkers, ndim)))
@@ -337,9 +384,9 @@ def main():
                                      minus=float(med[i] - lo[i]),
                                      plus=float(hi[i] - med[i])) for i in range(ndim)}
     result = dict(code=code, model=args.model, channels=list(channels),
-                  fit_band_hz=[float(args.fmin), float(args.fmax)],
-                  window=args.window, log_sigma=args.log_sigma,
-                  n_bins=int(mask.sum()), coefficients=coeffs)
+                  fit_band_hz=[fmin, fmax], n_per_decade=args.n_per_decade,
+                  n_points=int(fb.size), n_median_bins=int(mask.sum()),
+                  window=args.window, sigma_floor=args.log_sigma, coefficients=coeffs)
     out_json = os.path.join(args.out, f"{code}_confusion_fit_{args.model}.json")
     with open(out_json, "w") as fh:
         json.dump(result, fh, indent=2)
@@ -352,7 +399,8 @@ def main():
     conf_fit = model_conf(f, med, args.model)
     out_png = os.path.join(args.out, f"{code}_confusion_fit_{args.model}.png")
     plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax,
-                model_curve=instr[ref] + conf_fit, model_label=f"fit: instr + S_conf ({args.model})")
+                model_curve=instr[ref] + conf_fit, model_label=f"fit: instr + S_conf ({args.model})",
+                binned=binned)
 
     # --- corner (optional) ---
     try:
