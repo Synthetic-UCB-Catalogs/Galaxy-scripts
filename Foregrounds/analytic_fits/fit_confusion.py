@@ -10,10 +10,14 @@ from high-SNR residual sources. For the fit we re-smooth the residual with a run
 MEDIAN (gwg's `methoduse: median` path: ndimage.median_filter x chi^2 debias norm),
 add the instrument PSD, and fit
 
-    S_total(f) = S_instr(f) + S_conf(f; theta)
+    S_total(f) = S_instr(f) + R(f) * S_conf_strain(f; theta)
 
-with S_instr fixed (TDI1 AET1SensitivityMatrix, the same the pipeline adds) and S_conf the
-analytic confusion model. This is preprocessing only -- no icloop rerun.
+with S_instr fixed (TDI1 AET1SensitivityMatrix, the same the pipeline adds), S_conf_strain the
+analytic confusion model in the STRAIN convention, and R(f) lisatools' strain->TDI1 A/E channel
+response (A1TDISens.stochastic_transform; ~f^4 at low f). The data is a TDI1 channel PSD, where
+the monotonic f^-7/3 strain foreground becomes a bumped channel spectrum via R(f); fitting
+instr + R(f)*S_conf_strain therefore recovers theta in the strain convention. Preprocessing
+only -- no icloop rerun.
 
 Models:
   karnesis (default, the gwg-lineage form, Karnesis+2021 Eq.6):
@@ -23,9 +27,9 @@ Models:
     S_conf(f) = A f^(-7/3) exp[ -f^alpha + beta f sin(kappa f) ] [ 1 + tanh( gamma (fk - f) ) ]
     theta = {A, alpha, beta, kappa, gamma, fk}
 
-NOTE on convention: we fit the pipeline's TDI1 A/E-channel PSD (1/Hz). The fitted amplitude
-A is therefore in that convention, NOT Robson's sky-averaged single-Michelson convention --
-the shape parameters are comparable, A is not directly. Document this with any data product.
+NOTE on convention: because R(f) carries the strain->channel transfer, the fitted coefficients
+(including A) are in the STRAIN S_gal convention, directly comparable to lisatools' galactic
+foreground (HyperbolicTangentGalacticForeground, default A_gal~3.27e-44) and to Robson+2019.
 
 CLI (run from Foregrounds/):
     python analytic_fits/fit_confusion.py --dir output/<...>/fiducial --code COSMIC --snr 7 \
@@ -73,6 +77,21 @@ def instrument_aet(f):
     fpos = np.maximum(f, 1e-7)
     sm = AET1SensitivityMatrix(fpos, model=lisa_models.scirdv1, return_type="PSD")
     return {k: np.asarray(sm[i]).astype(np.float64) for i, k in enumerate(("A", "E", "T"))}
+
+
+def stochastic_response(f):
+    """lisatools' exact strain->TDI1 A/E channel response for a STOCHASTIC foreground.
+
+    R(f) = A1TDISens.stochastic_transform(f, Sh=1) = 1.5*4*x^2*sin^2(x), x = 2*pi*L*f;
+    ~ f^4 at low f. It maps a strain confusion PSD S_conf into the A/E channel:
+    channel_conf = R(f) * S_conf(strain). E inherits A's transform, so A and E share R.
+    This is the convention bridge: the channel-PSD bump is R(f) applied to the monotonic
+    f^-7/3 strain foreground, so fitting in the channel as instr + R(f)*S_conf(theta)
+    yields theta in the strain (Robson/Karnesis/LEGWORK) convention.
+    """
+    from lisatools.sensitivity import A1TDISens
+    fpos = np.asarray(f, dtype=np.float64)
+    return np.asarray(A1TDISens.stochastic_transform(fpos, np.ones_like(fpos))).astype(np.float64)
 
 
 # ------------------------------------------------------------------- smoothing
@@ -173,12 +192,14 @@ def _init_worker(payload):
 
 
 def _log_prob(theta):
-    """Gaussian-in-log10(PSD) posterior for S_total = instrument + S_conf(theta)."""
+    """Gaussian-in-log10(PSD) posterior for the CHANNEL total:
+    S_total(f) = instrument(f) + R(f) * S_conf_strain(f; theta), with R(f) the lisatools
+    strain->channel response. theta is therefore in the strain convention."""
     F = _FIT
     for v, (lo, hi) in zip(theta, F["bounds"]):
         if not (lo <= v <= hi):
             return -np.inf
-    conf = model_conf(F["f"], theta, F["model"])
+    conf = F["R"] * model_conf(F["f"], theta, F["model"])
     if not np.all(np.isfinite(conf)) or np.any(conf < 0):
         return -np.inf
     ll = 0.0
@@ -361,22 +382,22 @@ def main():
 
     init = INIT[args.model]
     theta0 = list(init["theta"])
-    # The model is linear in A, and the literal Karnesis/Robson amplitude is in a different
-    # channel convention -- orders of magnitude off for our TDI1 PSD (a fixed prior on A then
-    # rails the fit). So initialise A AND its prior from the data: median of (confusion /
-    # unit-amplitude model shape) over the band. The shape params (frequencies, slopes) are
-    # convention-independent, so the Karnesis values are kept as their starting point.
-    shape_unit = model_conf(fb, [1.0] + theta0[1:], args.model)
+    # Model the CHANNEL data as instr + R(f)*S_conf_strain(theta), so theta is in the strain
+    # convention. The model is linear in A; initialise A and its (data-relative) prior from the
+    # data: median of (channel confusion / [R * unit-amplitude strain shape]) near the model
+    # peak. The shape params (frequencies, slopes) keep the Karnesis starting point.
+    Rb = stochastic_response(fb)
+    shape_unit = Rb * model_conf(fb, [1.0] + theta0[1:], args.model)
     conf_b = np.maximum(Sb[ref] - Imb[ref], 0.0)
-    good = (conf_b > 0) & (shape_unit > 0)
+    good = (conf_b > 0) & (shape_unit > 0.3 * np.nanmax(shape_unit))
     A_init = float(np.median(conf_b[good] / shape_unit[good])) if good.any() else theta0[0]
     theta0[0] = A_init
     bounds = list(BOUNDS[args.model])
     bounds[0] = (A_init * 1e-4, A_init * 1e4)        # data-relative amplitude prior
     p0 = np.array(theta0, dtype=np.float64)
     ndim = len(p0)
-    print(f"[{code}] data-driven A_init = {A_init:.3e} (TDI1-channel convention; prior {bounds[0][0]:.1e}..{bounds[0][1]:.1e})")
-    payload = dict(f=fb, Im=Imb, logSd={k: np.log10(Sb[k]) for k in channels},
+    print(f"[{code}] data-driven A_init = {A_init:.3e} (strain S_gal convention; prior {bounds[0][0]:.1e}..{bounds[0][1]:.1e})")
+    payload = dict(f=fb, Im=Imb, R=Rb, logSd={k: np.log10(Sb[k]) for k in channels},
                    logSig={k: sigb[k] for k in channels},
                    channels=channels, model=args.model, bounds=bounds)
 
@@ -405,6 +426,8 @@ def main():
                                      minus=float(med[i] - lo[i]),
                                      plus=float(hi[i] - med[i])) for i in range(ndim)}
     result = dict(code=code, model=args.model, channels=list(channels),
+                  convention="strain S_gal; fit channel = instr + R(f)*S_conf_strain, "
+                             "R = lisatools A1TDISens.stochastic_transform",
                   fit_band_hz=[fmin, fmax], n_per_decade=args.n_per_decade,
                   n_points=int(fb.size), n_median_bins=int(mask.sum()),
                   window=args.window, sigma_floor=args.log_sigma, coefficients=coeffs)
@@ -417,10 +440,10 @@ def main():
         print(f"    {name:6s} = {c['median']:.4g} (+{c['plus']:.2g}/-{c['minus']:.2g})")
 
     # --- overlay plot: median data, pipeline mean curve, instrument, fit ---
-    conf_fit = model_conf(f, med, args.model)
+    conf_fit = stochastic_response(f) * model_conf(f, med, args.model)   # strain model -> channel
     out_png = os.path.join(args.out, f"{code}_confusion_fit_{args.model}.png")
     plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax,
-                model_curve=instr[ref] + conf_fit, model_label=f"fit: instr + S_conf ({args.model})",
+                model_curve=instr[ref] + conf_fit, model_label=f"fit: instr + R(f)·S_conf ({args.model})",
                 binned=binned)
 
     # --- corner (optional) ---
