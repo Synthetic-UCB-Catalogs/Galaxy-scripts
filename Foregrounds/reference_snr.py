@@ -86,7 +86,12 @@ def _instrument_psd_fn(tdi: int):
 def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
     """Per-source no-FG SNR with gbgpu + instrument-only PSD (actual sky position)."""
     from gbgpu.gbgpu import GBGPU
-    gb = GBGPU(use_gpu=use_gpu)
+    import lisatools.detector as lisa_models
+    # Match the pipeline's construction (gen_waveforms/main_loop): the orbits'
+    # GPU setting must match GBGPU's, otherwise orbits.get_pos hits a GPU/CPU
+    # array mismatch when use_gpu=True.
+    orbits = lisa_models.EqualArmlengthOrbits(use_gpu=use_gpu)
+    gb = GBGPU(orbits=orbits, use_gpu=use_gpu)
     psd = _instrument_psd_fn(tdi)
     T_sec = tobs * Constants.yr
     df_bin = 1.0 / T_sec
