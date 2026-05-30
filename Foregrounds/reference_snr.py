@@ -169,9 +169,13 @@ def reference_counts(input_cat, tobs, dt, tdi=1, thresholds=(5, 6, 7, 8, 9),
         if alldwds is None or not os.path.exists(alldwds):
             print(f"WARNING: legwork method skipped (AllDWDs csv not given/found: {alldwds})")
         else:
-            df = pd.read_csv(alldwds)
-            snr = per_source_snr_legwork(df, tobs)
-            out["legwork"] = {float(t): int((snr > t).sum()) for t in thresholds}
+            try:
+                df = pd.read_csv(alldwds)
+                snr = per_source_snr_legwork(df, tobs)
+                out["legwork"] = {float(t): int((snr > t).sum()) for t in thresholds}
+            except ImportError as e:
+                print(f"WARNING: legwork not installed; skipping legwork cross-check ({e}). "
+                      f"The gbgpu reference is unaffected.")
     return out
 
 
