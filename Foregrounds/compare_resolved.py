@@ -10,6 +10,9 @@ For the datapath in config.yaml, this:
      if the tag mismatches, if a needed threshold is missing, or if input_cat.h5
      is newer than the cache (e.g. after an amplitude/gen_catalog change).
   3. Plots:
+       figures/resolved_counts.png      resolved DWDs per code, grouped bars by
+                                        cutoff (gist_rainbow; lisa_dwd_count_plotter
+                                        convention) — the main counts figure
        figures/recovery_money.png       recovery at SNR>7 per code
                                         (gbgpu = headline, legwork = faded check)
        figures/recovery_vs_cutoff.png   recovery vs snr_cutoff per code (gbgpu)
@@ -198,6 +201,41 @@ def main():
         print("saved figures/recovery_vs_cutoff.png")
     elif len(cutoffs) <= 1:
         print("(only one snr_cutoff present — run more cutoffs for the uncertainty figure)")
+
+    # 3c. Main resolved-COUNTS bar plot. Restores the upstream lisa_dwd_count_plotter
+    # convention (per-code grouped bars, gist_rainbow per group, centered xticks, dotted
+    # y-grid, inward ticks) — here grouped by SNR cutoff (what we now sweep) rather than
+    # by ICV. Shows the pipeline's resolved counts directly.
+    present = [c for c in CODES if c in set(tab.code)]
+    if present and cutoffs:
+        width = 0.7 / len(cutoffs)
+        colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(cutoffs)))
+        xtick_pos = np.linspace(
+            (len(cutoffs) / 2 - 0.5) * width,
+            len(present) - 1 + (len(cutoffs) / 2 - 0.5) * width,
+            len(present),
+        )
+        fig, ax = plt.subplots(figsize=(10, 5))
+        labeled = set()
+        for i, code in enumerate(present):
+            for j, cut in enumerate(cutoffs):
+                sub = tab[(tab.code == code) & (tab.cutoff == cut)]
+                val = int(sub.resolved.iloc[0]) if not sub.empty else np.nan
+                lbl = f"SNR>{cut:g}" if (cut not in labeled and not sub.empty) else None
+                ax.bar(i + j * width, val, width, color=colors[j],
+                       edgecolor="black", label=lbl)
+                if lbl:
+                    labeled.add(cut)
+        ax.set_xticks(xtick_pos)
+        ax.set_xticklabels(present)
+        ax.set_ylabel("Resolved DWDs")
+        ax.legend(title="cutoff")
+        ax.grid(True, linestyle=":", linewidth=1.0, axis="y")
+        ax.yaxis.set_ticks_position("both")
+        ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
+        fig.tight_layout()
+        fig.savefig(os.path.join("figures", "resolved_counts.png"), dpi=150)
+        print("saved figures/resolved_counts.png")
 
 
 if __name__ == "__main__":
