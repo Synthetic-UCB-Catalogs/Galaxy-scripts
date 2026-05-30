@@ -77,6 +77,10 @@ def load_reference(code, config, outpath, inpath, datapath, thresholds, use_gpu)
     Methods: gbgpu (no-conf), legwork (no-conf), legwork_robson19 (galactic FG on).
     The robson19 reference is the CSV cross-check (TODO #2); it shares the no-conf
     LEGWORK source params and only differs in the confusion model.
+
+    Caching is INCREMENTAL per method: a valid cache that only lacks a (cheap
+    LEGWORK) method has just that method computed and appended — the expensive
+    gbgpu per-source SNRs are never recomputed to add a reference.
     """
     cache_path = os.path.join(outpath, f"{code}_reference_counts.csv")
     input_cat = os.path.join(inpath, f"{code}_input_cat.h5")
@@ -84,39 +88,55 @@ def load_reference(code, config, outpath, inpath, datapath, thresholds, use_gpu)
     tobs = float(config["duration"]); dt = float(config["dt"])
     tdi = 1 if not config.get("tdi2", False) else 2
     need = {float(t) for t in thresholds}
+    WANTED = ("gbgpu", "legwork", "legwork_robson19")
     if not os.path.exists(input_cat):
         print(f"  [{code}] input_cat missing; skipping reference")
         return None
+
+    # Reuse any valid cached rows; recompute ONLY the methods actually missing.
+    # gbgpu (per-source SNR) is the expensive one — never recompute it just to add
+    # a new (cheap LEGWORK) reference method to an otherwise-valid cache.
+    kept = pd.DataFrame()
     if os.path.exists(cache_path) and os.path.getmtime(cache_path) >= os.path.getmtime(input_cat):
-        cache = pd.read_csv(cache_path)
-        have = set(cache.method)
-        tag_ok = len(cache) and bool(
-            ((cache.tobs_yr == tobs) & (cache.dt_s == dt) & (cache.tdi == tdi)).all())
-        thr_ok = need.issubset(set(cache.snr_threshold.astype(float)))
-        # Old caches predate the robson19 reference: if legwork is present but its
-        # robson19 sibling is not, the cache is stale and must be recomputed.
-        old_schema = ("legwork" in have) and ("legwork_robson19" not in have)
-        if tag_ok and thr_ok and "gbgpu" in have and not old_schema:
-            return cache
-        print(f"  [{code}] cache stale; recomputing")
-    print(f"  [{code}] computing reference (tobs={tobs}, dt={dt}, tdi={tdi}) ...")
-    thr = sorted(need)
-    counts = reference_snr.reference_counts(
-        input_cat, tobs, dt, tdi=tdi, thresholds=thr,
-        use_gpu=use_gpu, alldwds=alldwds, methods=("gbgpu", "legwork"))
-    counts_rob = reference_snr.reference_counts(
-        input_cat, tobs, dt, tdi=tdi, thresholds=thr, use_gpu=use_gpu,
-        alldwds=alldwds, methods=("legwork",), legwork_confusion="robson19")
-    rows = [{"code": code, "method": m, "tdi": tdi, "tobs_yr": tobs, "dt_s": dt,
-             "snr_threshold": float(t), "ref_count": c}
-            for m, by in counts.items() for t, c in by.items()]
-    rows += [{"code": code, "method": "legwork_robson19", "tdi": tdi, "tobs_yr": tobs,
-              "dt_s": dt, "snr_threshold": float(t), "ref_count": c}
-             for t, c in counts_rob.get("legwork", {}).items()]
-    cache = pd.DataFrame(rows)
-    cache.to_csv(cache_path, index=False)
+        c = pd.read_csv(cache_path)
+        tag_ok = len(c) and bool(((c.tobs_yr == tobs) & (c.dt_s == dt) & (c.tdi == tdi)).all())
+        thr_ok = need.issubset(set(c.snr_threshold.astype(float)))
+        if tag_ok and thr_ok:
+            kept = c
+    have = set(kept.method) if len(kept) else set()
+    missing = [m for m in WANTED if m not in have]
+    if not missing:
+        return kept
+
+    # Align new methods to whatever threshold grid the cache already uses.
+    thr = sorted(set(kept.snr_threshold.astype(float)) | need) if len(kept) else sorted(need)
+    print(f"  [{code}] computing reference methods {missing} (tobs={tobs}, dt={dt}, tdi={tdi}) ...")
+
+    def mkrow(method, t, cnt):
+        return {"code": code, "method": method, "tdi": tdi, "tobs_yr": tobs,
+                "dt_s": dt, "snr_threshold": float(t), "ref_count": cnt}
+
+    new_rows = []
+    if "gbgpu" in missing:
+        out = reference_snr.reference_counts(input_cat, tobs, dt, tdi=tdi, thresholds=thr,
+                                             use_gpu=use_gpu, alldwds=alldwds, methods=("gbgpu",))
+        new_rows += [mkrow("gbgpu", t, cnt) for t, cnt in out.get("gbgpu", {}).items()]
+    if "legwork" in missing:
+        out = reference_snr.reference_counts(input_cat, tobs, dt, tdi=tdi, thresholds=thr,
+                                             use_gpu=use_gpu, alldwds=alldwds, methods=("legwork",))
+        new_rows += [mkrow("legwork", t, cnt) for t, cnt in out.get("legwork", {}).items()]
+    if "legwork_robson19" in missing:
+        out = reference_snr.reference_counts(input_cat, tobs, dt, tdi=tdi, thresholds=thr,
+                                             use_gpu=use_gpu, alldwds=alldwds, methods=("legwork",),
+                                             legwork_confusion="robson19")
+        new_rows += [mkrow("legwork_robson19", t, cnt) for t, cnt in out.get("legwork", {}).items()]
+
+    if not new_rows:
+        return kept if len(kept) else None
+    merged = pd.concat([kept, pd.DataFrame(new_rows)], ignore_index=True) if len(kept) else pd.DataFrame(new_rows)
+    merged.to_csv(cache_path, index=False)
     print(f"  [{code}] reference cached -> {cache_path}")
-    return cache
+    return merged
 
 
 def _nominal_and_err(sub, valcol):
