@@ -146,7 +146,7 @@ def per_source_snr_legwork(alldwds_df, tobs, confusion=None, batch=200000):
 
     n_batches = (n + batch - 1) // batch
     for lo in _tqdm(range(0, n, batch), total=n_batches,
-                    desc=f"legwork SNR ({n:,} src)", unit="batch"):
+                    desc=f"legwork SNR [{confusion or 'no-conf'}] ({n:,} src)", unit="batch"):
         hi = min(lo + batch, n)
         sl = slice(lo, hi)
         m_c = lutils.chirp_mass(m1[sl] * u.Msun, m2[sl] * u.Msun)
