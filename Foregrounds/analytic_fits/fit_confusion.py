@@ -28,8 +28,9 @@ A is therefore in that convention, NOT Robson's sky-averaged single-Michelson co
 the shape parameters are comparable, A is not directly. Document this with any data product.
 
 CLI (run from Foregrounds/):
-    python fit_confusion.py --h5 output/<DP>/COSMIC_output_cat_snr7.h5 --code COSMIC \
-        --channels A,E --nwalkers 32 --nsteps 4000 --out fits/
+    python analytic_fits/fit_confusion.py --dir output/<...>/fiducial --code COSMIC --snr 7 \
+        --out analytic_fits/fits
+    # the h5 name is built as {code}_output_cat_snr{snr}.h5; or point directly with --h5.
 """
 from __future__ import annotations
 
@@ -214,8 +215,14 @@ def main():
 
     ap = argparse.ArgumentParser(parents=[pre], description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--h5", required=True, help="{code}_output_cat_snr{X}.h5 from main_loop")
-    ap.add_argument("--code", default=None)
+    ap.add_argument("--dir", default=None,
+                    help="output dir holding {code}_output_cat_snr{snr}.h5 "
+                         "(e.g. .../initial_condition_variations/fiducial)")
+    ap.add_argument("--code", default=None,
+                    help="stellar code (e.g. COSMIC); with --dir/--snr it builds the h5 filename")
+    ap.add_argument("--snr", type=float, default=7,
+                    help="SNR cutoff identifying the run; file suffix snr{snr:g} (default 7)")
+    ap.add_argument("--h5", default=None, help="explicit h5 path; overrides --dir/--code/--snr")
     ap.add_argument("--model", default=cfg.get("model", "karnesis"), choices=("karnesis", "robson"))
     ap.add_argument("--channels", default=chan_default, help="comma list among A,E (T has ~no confusion)")
     ap.add_argument("--window", type=int, default=cfg.get("window", 2000),
@@ -240,16 +247,25 @@ def main():
     ap.add_argument("--out", default=cfg.get("out", "fits"), help="output directory for coefficients + plots")
     args = ap.parse_args()
 
-    code = args.code or os.path.basename(args.h5).split("_output_cat")[0]
+    if args.h5:
+        h5 = args.h5
+        code = args.code or os.path.basename(h5).split("_output_cat")[0]
+    elif args.dir and args.code:
+        code = args.code
+        h5 = os.path.join(args.dir, f"{code}_output_cat_snr{args.snr:g}.h5")
+    else:
+        ap.error("provide --dir and --code (or an explicit --h5)")
+    if not os.path.exists(h5):
+        ap.error(f"h5 not found: {h5}")
     channels = tuple(c.strip() for c in args.channels.split(","))
     os.makedirs(args.out, exist_ok=True)
 
     # --- preprocess: median-smoothed total PSD on the residual ---
-    f_full, aet = load_residual_tdi(args.h5)
+    f_full, aet = load_residual_tdi(h5)
     instr_full = instrument_aet(f_full)
     f, Smed = median_total_psd(f_full, aet, instr_full, args.window, fmax_crop=args.fmax_crop)
     instr = instrument_aet(f)
-    fS, Ssaved = load_saved_psd(args.h5)        # the pipeline's mean-smoothed curve, for comparison
+    fS, Ssaved = load_saved_psd(h5)        # the pipeline's mean-smoothed curve, for comparison
     ref = channels[0]
 
     # --- fit band: inferred from the curve itself (its frequency extent minus the
