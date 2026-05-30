@@ -107,7 +107,10 @@ def model_conf(f, theta, model):
     raise ValueError(f"unknown model {model!r}")
 
 
-# Karnesis Table II (running median, rho0=7) as a reasonable 4-yr starting point.
+# Karnesis Table II (running median, rho0=7) 4-yr starting point. NOTE: the amplitude A
+# here is only a placeholder -- it is overridden at runtime by a data-driven estimate
+# (our TDI1-channel PSD is in a different convention from Karnesis's). The shape params
+# (frequencies/slopes) are convention-independent and used as-is for the starting point.
 INIT = {
     "karnesis": dict(theta=[1.15e-44, 1.56, 1.5e-3, 6.7e-4, 1.9e-3],
                      names=["A", "alpha", "f1", "f2", "fknee"]),
@@ -357,14 +360,28 @@ def main():
     import multiprocessing as mp
 
     init = INIT[args.model]
-    p0 = np.array(init["theta"], dtype=np.float64)
+    theta0 = list(init["theta"])
+    # The model is linear in A, and the literal Karnesis/Robson amplitude is in a different
+    # channel convention -- orders of magnitude off for our TDI1 PSD (a fixed prior on A then
+    # rails the fit). So initialise A AND its prior from the data: median of (confusion /
+    # unit-amplitude model shape) over the band. The shape params (frequencies, slopes) are
+    # convention-independent, so the Karnesis values are kept as their starting point.
+    shape_unit = model_conf(fb, [1.0] + theta0[1:], args.model)
+    conf_b = np.maximum(Sb[ref] - Imb[ref], 0.0)
+    good = (conf_b > 0) & (shape_unit > 0)
+    A_init = float(np.median(conf_b[good] / shape_unit[good])) if good.any() else theta0[0]
+    theta0[0] = A_init
+    bounds = list(BOUNDS[args.model])
+    bounds[0] = (A_init * 1e-4, A_init * 1e4)        # data-relative amplitude prior
+    p0 = np.array(theta0, dtype=np.float64)
     ndim = len(p0)
+    print(f"[{code}] data-driven A_init = {A_init:.3e} (TDI1-channel convention; prior {bounds[0][0]:.1e}..{bounds[0][1]:.1e})")
     payload = dict(f=fb, Im=Imb, logSd={k: np.log10(Sb[k]) for k in channels},
                    logSig={k: sigb[k] for k in channels},
-                   channels=channels, model=args.model, bounds=BOUNDS[args.model])
+                   channels=channels, model=args.model, bounds=bounds)
 
     rng = np.random.default_rng(0)
-    pos = p0 * (1.0 + 1e-3 * rng.standard_normal((args.nwalkers, ndim)))
+    pos = p0 * (1.0 + 1e-2 * rng.standard_normal((args.nwalkers, ndim)))
 
     nproc = args.nproc if args.nproc is not None else _default_nproc()
     pool = None
