@@ -1,5 +1,5 @@
 """
-Recovery-fraction analysis: resolved (gwg.icloop) / no-foreground reference,
+Recovery-fraction analysis: resolved (gwg.icloop) / reference,
 following Wouter's lisa_dwd_counter.py (`lisa_dwd_count_plotter`) convention.
 
 Per-code grouped bars colored by ICV (initial-condition variation). The SNR-
@@ -7,15 +7,18 @@ threshold uncertainty (sweep of snr_cutoff) is shown ON TOP as error bars: each
 bar is the nominal SNR>7 value; the error bar spans the cut5..cut9 range. ICVs
 without output get reserved (empty) slots, matching the upstream plotter.
 
-Figures:
-    figures/compare_resolved.png   resolved DWD counts per code (bars by ICV) + SNR-range error bars
-    figures/compare_recovery.png   recovery % per code (resolved / no-FG gbgpu ref) + SNR-range error bars
+Figures (recovery plots share the resolved-counts legend, so only the counts
+figure carries it — the recovery figures sit beside it in the draft):
+    figures/compare_resolved.png                    resolved DWD counts per code (bars by ICV)
+    figures/compare_recovery.png                    recovery % vs no-conf gbgpu reference
+    figures/compare_recovery_legwork.png            recovery % vs no-conf LEGWORK reference
+    figures/compare_recovery_legwork_robson19.png   recovery % vs LEGWORK robson19 reference
 
-Per (code, ICV, cutoff): resolved from {code}_output_cat_snr{X}.h5; the no-FG
-reference (gbgpu per-source + legwork) from reference_snr.py, cached per code in
-each ICV's output dir and tagged by (tobs,dt,tdi). Recovery uses the gbgpu ref
-(REF_METHOD). Run from Foregrounds/. First run per ICV computes the reference
-(expensive); later runs read the cache.
+Per (code, ICV, cutoff): resolved from {code}_output_cat_snr{X}.h5; the references
+(gbgpu per-source no-conf, LEGWORK no-conf, LEGWORK robson19) from reference_snr.py,
+cached per code in each ICV's output dir and tagged by (tobs,dt,tdi). Run from
+Foregrounds/. First run per ICV computes the references (expensive); later runs
+read the cache.
 
 Usage:
     python compare_resolved.py
@@ -36,7 +39,16 @@ CODES = ['BPASS', 'BSE', 'ComBinE', 'COMPAS', 'COSMIC', 'METISSE', 'SeBa', 'SEVN
 VARIATIONS = ['fiducial', 'm2_min_05', 'porb_log_uniform', 'qmin_01',
               'thermal_ecc', 'uniform_ecc']
 MONEY_CUTOFF = 7.0
-REF_METHOD = "gbgpu"   # no-FG reference used for the recovery % (apples-to-apples)
+
+# Recovery references: (method key in the reference cache, y-axis label, output file, ylim).
+# gbgpu/LEGWORK no-conf are the resolvability ceilings (<=100%); the LEGWORK robson19
+# reference is suppressed by the galactic foreground, so its recovery can exceed 100%
+# (autoscaled, ylim=None) — that overshoot is the point of the CSV cross-check.
+RECOVERY_REFS = [
+    ("gbgpu",            "Resolved / no-conf (gbgpu) [%]",    "compare_recovery.png",                  (0, 100)),
+    ("legwork",          "Resolved / no-conf (LEGWORK) [%]",  "compare_recovery_legwork.png",          (0, 100)),
+    ("legwork_robson19", "Resolved / robson19 (LEGWORK) [%]", "compare_recovery_legwork_robson19.png", None),
+]
 
 
 def datapath_for_variation(datapath, variation):
@@ -60,7 +72,12 @@ def resolved_count(cat_path):
 
 
 def load_reference(code, config, outpath, inpath, datapath, thresholds, use_gpu):
-    """Per-code no-FG reference-count DataFrame (gbgpu+legwork), cached. None if no input_cat."""
+    """Per-code reference-count DataFrame, cached. None if no input_cat.
+
+    Methods: gbgpu (no-conf), legwork (no-conf), legwork_robson19 (galactic FG on).
+    The robson19 reference is the CSV cross-check (TODO #2); it shares the no-conf
+    LEGWORK source params and only differs in the confusion model.
+    """
     cache_path = os.path.join(outpath, f"{code}_reference_counts.csv")
     input_cat = os.path.join(inpath, f"{code}_input_cat.h5")
     alldwds = os.path.join(config["basepath"], datapath, f"{code}_Galaxy_AllDWDs.csv")
@@ -72,18 +89,30 @@ def load_reference(code, config, outpath, inpath, datapath, thresholds, use_gpu)
         return None
     if os.path.exists(cache_path) and os.path.getmtime(cache_path) >= os.path.getmtime(input_cat):
         cache = pd.read_csv(cache_path)
+        have = set(cache.method)
         tag_ok = len(cache) and bool(
             ((cache.tobs_yr == tobs) & (cache.dt_s == dt) & (cache.tdi == tdi)).all())
-        if tag_ok and need.issubset(set(cache.snr_threshold.astype(float))):
+        thr_ok = need.issubset(set(cache.snr_threshold.astype(float)))
+        # Old caches predate the robson19 reference: if legwork is present but its
+        # robson19 sibling is not, the cache is stale and must be recomputed.
+        old_schema = ("legwork" in have) and ("legwork_robson19" not in have)
+        if tag_ok and thr_ok and "gbgpu" in have and not old_schema:
             return cache
         print(f"  [{code}] cache stale; recomputing")
     print(f"  [{code}] computing reference (tobs={tobs}, dt={dt}, tdi={tdi}) ...")
+    thr = sorted(need)
     counts = reference_snr.reference_counts(
-        input_cat, tobs, dt, tdi=tdi, thresholds=sorted(need),
+        input_cat, tobs, dt, tdi=tdi, thresholds=thr,
         use_gpu=use_gpu, alldwds=alldwds, methods=("gbgpu", "legwork"))
+    counts_rob = reference_snr.reference_counts(
+        input_cat, tobs, dt, tdi=tdi, thresholds=thr, use_gpu=use_gpu,
+        alldwds=alldwds, methods=("legwork",), legwork_confusion="robson19")
     rows = [{"code": code, "method": m, "tdi": tdi, "tobs_yr": tobs, "dt_s": dt,
              "snr_threshold": float(t), "ref_count": c}
             for m, by in counts.items() for t, c in by.items()]
+    rows += [{"code": code, "method": "legwork_robson19", "tdi": tdi, "tobs_yr": tobs,
+              "dt_s": dt, "snr_threshold": float(t), "ref_count": c}
+             for t, c in counts_rob.get("legwork", {}).items()]
     cache = pd.DataFrame(rows)
     cache.to_csv(cache_path, index=False)
     print(f"  [{code}] reference cached -> {cache_path}")
@@ -105,9 +134,12 @@ def _nominal_and_err(sub, valcol):
     return nominal, max(nominal - lo, 0.0), max(hi - nominal, 0.0)
 
 
-def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None):
+def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None, legend=True):
     """Per-code grouped bars colored by ICV (lisa_dwd_count_plotter convention), with
-    SNR-threshold-range error bars (bar at SNR>MONEY_CUTOFF, caps span cut min..max)."""
+    SNR-threshold-range error bars (bar at SNR>MONEY_CUTOFF, caps span cut min..max).
+
+    legend=False omits the ICV legend (the recovery figures reuse the counts legend
+    when placed side by side in the draft)."""
     width = 0.7 / len(VARIATIONS)
     colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(VARIATIONS)))
     xtick_pos = np.linspace((len(VARIATIONS) / 2 - 0.5) * width,
@@ -125,7 +157,8 @@ def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None):
     ax.set_ylabel(ylabel)
     if ylim:
         ax.set_ylim(*ylim)
-    ax.legend(VARIATIONS)   # lisa_dwd_count_plotter convention: legend(var_list) — full ICV colour key
+    if legend:
+        ax.legend(VARIATIONS)   # lisa_dwd_count_plotter convention: legend(var_list) — full ICV colour key
     ax.grid(True, linestyle=":", linewidth=1.0, axis="y")
     ax.yaxis.set_ticks_position("both")
     ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
@@ -136,11 +169,22 @@ def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None):
     plt.close(fig)
 
 
+def _fmt(sub, valcol, pct=False):
+    """'nominal (+hi/-lo)' string: value at SNR>MONEY_CUTOFF with the cutoff-sweep range."""
+    nominal, elo, ehi = _nominal_and_err(sub, valcol)
+    if np.isnan(nominal):
+        return "n/a"
+    d = 1 if pct else 0
+    suffix = "%" if pct else ""
+    return f"{nominal:.{d}f} (+{ehi:.{d}f}/-{elo:.{d}f}){suffix}"
+
+
 def main():
     os.environ.setdefault("EXPERIMENT_ROOT", "./")
     config = load_and_prepare_config("config.yaml")
     base_datapath = config["datapath"]
     use_gpu = config.get("use_gpu", False)
+    ref_keys = [k for k, _, _, _ in RECOVERY_REFS]
 
     # Build a (code, ICV, cutoff) table from whatever runs exist under each ICV dir.
     records = []
@@ -156,12 +200,13 @@ def main():
             ref = load_reference(code, config, outpath, inpath, var_datapath, cuts_here, use_gpu)
             for cutoff, cat_path in runs:
                 res = resolved_count(cat_path)
-                rec = {"code": code, "variation": var, "cutoff": cutoff,
-                       "resolved": res, "recovery_pct": np.nan}
-                if ref is not None:
-                    s = ref[(ref.method == REF_METHOD) & (ref.snr_threshold == cutoff)]
-                    if not s.empty and int(s.ref_count.iloc[0]) > 0:
-                        rec["recovery_pct"] = 100.0 * res / int(s.ref_count.iloc[0])
+                rec = {"code": code, "variation": var, "cutoff": cutoff, "resolved": res}
+                for key in ref_keys:
+                    rec[f"recovery_{key}"] = np.nan
+                    if ref is not None:
+                        s = ref[(ref.method == key) & (ref.snr_threshold == cutoff)]
+                        if not s.empty and int(s.ref_count.iloc[0]) > 0:
+                            rec[f"recovery_{key}"] = 100.0 * res / int(s.ref_count.iloc[0])
                 records.append(rec)
 
     if not records:
@@ -170,23 +215,26 @@ def main():
     tab = pd.DataFrame(records)
     cutoffs = sorted(tab.cutoff.unique())
     icvs_present = [v for v in VARIATIONS if v in set(tab.variation)]
+    avail_refs = [(k, lbl) for k, lbl, _, _ in RECOVERY_REFS if tab[f"recovery_{k}"].notna().any()]
     print(f"ICVs with output: {icvs_present}")
-    print(f"snr_cutoff runs: {cutoffs}  (bar = SNR>{MONEY_CUTOFF:g}; error bar spans the range)")
+    print(f"snr_cutoff runs: {cutoffs}  (value = SNR>{MONEY_CUTOFF:g}; +hi/-lo spans the sweep)")
 
     for var in icvs_present:
         print(f"\n=== {var} ===")
         for code in CODES:
-            sub = tab[(tab.code == code) & (tab.variation == var)].sort_values("cutoff")
+            sub = tab[(tab.code == code) & (tab.variation == var)]
             if sub.empty:
                 continue
-            cells = "  ".join(f"cut{r.cutoff:g}: res={r.resolved} rec={r.recovery_pct:.1f}%"
-                              for _, r in sub.iterrows())
-            print(f"  {code:8s}  {cells}")
+            recs = "   ".join(f"rec[{k}] = {_fmt(sub, f'recovery_{k}', pct=True)}"
+                              for k, _ in avail_refs)
+            print(f"  {code:8s}  res = {_fmt(sub, 'resolved')}   {recs}")
 
-    # Restored lisa_dwd_count_plotter convention: per-code grouped bars by ICV.
-    _icv_bar_plot(tab, "resolved", "Resolved DWDs", "compare_resolved.png")
-    _icv_bar_plot(tab, "recovery_pct", f"Resolved / no-FG ({REF_METHOD}) [%]",
-                  "compare_recovery.png", ylim=(0, 100))
+    # lisa_dwd_count_plotter convention: per-code grouped bars by ICV. Only the
+    # counts figure carries the legend; the recovery figures reuse it in the draft.
+    _icv_bar_plot(tab, "resolved", "Resolved DWDs", "compare_resolved.png", legend=True)
+    for key, label, outfile, ylim in RECOVERY_REFS:
+        if tab[f"recovery_{key}"].notna().any():
+            _icv_bar_plot(tab, f"recovery_{key}", label, outfile, ylim=ylim, legend=False)
 
 
 if __name__ == "__main__":
