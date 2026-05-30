@@ -154,6 +154,19 @@ def _nominal_and_err(sub, valcol):
     return nominal, max(nominal - lo, 0.0), max(hi - nominal, 0.0)
 
 
+# Font sizes tuned for this dense layout (8 codes × 6 ICVs at figsize 10×5). Applied via
+# rc_context so the figure is sized consistently regardless of ambient rcParams (e.g. the
+# 28/32 usetex sizes apply_global_plot_settings leaves active after main_loop). usetex /
+# font family are left untouched, so the house style still renders when it is on.
+_FONT_RC = {
+    "font.size": 12,
+    "axes.labelsize": 15,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
+    "legend.fontsize": 12,
+}
+
+
 def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None, legend=True):
     """Per-code grouped bars colored by ICV (lisa_dwd_count_plotter convention), with
     SNR-threshold-range error bars (bar at SNR>MONEY_CUTOFF, caps span cut min..max).
@@ -164,29 +177,30 @@ def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None, legend=True):
     colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(VARIATIONS)))
     xtick_pos = np.linspace((len(VARIATIONS) / 2 - 0.5) * width,
                             len(CODES) - 1 + (len(VARIATIONS) / 2 - 0.5) * width, len(CODES))
-    fig, ax = plt.subplots(figsize=(10, 5))
-    for i, code in enumerate(CODES):
-        for j, var in enumerate(VARIATIONS):
-            sub = tab[(tab.code == code) & (tab.variation == var)]
-            val, elo, ehi = _nominal_and_err(sub, valcol)
-            yerr = [[elo], [ehi]] if not np.isnan(val) else None
-            ax.bar(i + j * width, val, width, color=colors[j], edgecolor="black",
-                   yerr=yerr, capsize=3, ecolor="black", error_kw={"elinewidth": 0.8})
-    ax.set_xticks(xtick_pos)
-    ax.set_xticklabels(CODES)
-    ax.set_ylabel(ylabel)
-    if ylim:
-        ax.set_ylim(*ylim)
-    if legend:
-        ax.legend(VARIATIONS)   # lisa_dwd_count_plotter convention: legend(var_list) — full ICV colour key
-    ax.grid(True, linestyle=":", linewidth=1.0, axis="y")
-    ax.yaxis.set_ticks_position("both")
-    ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
-    fig.tight_layout()
-    os.makedirs("figures", exist_ok=True)
-    fig.savefig(os.path.join("figures", outfile), dpi=150)
-    print(f"saved figures/{outfile}")
-    plt.close(fig)
+    with plt.rc_context(_FONT_RC):
+        fig, ax = plt.subplots(figsize=(10, 5))
+        for i, code in enumerate(CODES):
+            for j, var in enumerate(VARIATIONS):
+                sub = tab[(tab.code == code) & (tab.variation == var)]
+                val, elo, ehi = _nominal_and_err(sub, valcol)
+                yerr = [[elo], [ehi]] if not np.isnan(val) else None
+                ax.bar(i + j * width, val, width, color=colors[j], edgecolor="black",
+                       yerr=yerr, capsize=3, ecolor="black", error_kw={"elinewidth": 0.8})
+        ax.set_xticks(xtick_pos)
+        ax.set_xticklabels(CODES)
+        ax.set_ylabel(ylabel)
+        if ylim:
+            ax.set_ylim(*ylim)
+        if legend:
+            ax.legend(VARIATIONS)   # lisa_dwd_count_plotter convention: legend(var_list) — full ICV colour key
+        ax.grid(True, linestyle=":", linewidth=1.0, axis="y")
+        ax.yaxis.set_ticks_position("both")
+        ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
+        fig.tight_layout()
+        os.makedirs("figures", exist_ok=True)
+        fig.savefig(os.path.join("figures", outfile), dpi=150)
+        print(f"saved figures/{outfile}")
+        plt.close(fig)
 
 
 def _fmt(sub, valcol, pct=False):
