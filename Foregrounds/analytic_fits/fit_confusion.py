@@ -127,10 +127,12 @@ def coarse_grain(f, S, fmin, fmax, n_per_decade=250, sigma_floor=0.05):
 
     The median curve is window-correlated (~2000-bin filter), so fitting every bin
     as independent overcounts information and shrinks the error bars. We bin to
-    ~n_per_decade log-spaced bins and fit one point per bin. Returns (fb, {k: Sb},
-    {k: sigma}): geometric bin centres, the per-bin mean of log10(S) back in linear,
-    and the std of log10(S) within the bin (the local scatter) floored at sigma_floor.
-    Bins with <2 samples are dropped.
+    ~n_per_decade log-spaced bins and fit one point per bin. Each bin value is the
+    MEDIAN of log10(S) (back in linear) and its sigma is a robust scatter, 1.4826*MAD
+    of log10(S), floored at sigma_floor. Median+MAD are spike-resistant: a stray
+    high-SNR source in a bin neither biases the point nor reads as a confident
+    measurement (its MAD-sigma inflates, so the fit down-weights it). Bins with <2
+    samples are dropped.
     """
     if f.size == 0 or fmax <= fmin:
         empty = np.array([])
@@ -143,11 +145,13 @@ def coarse_grain(f, S, fmin, fmax, n_per_decade=250, sigma_floor=0.05):
         sel = which == b
         if sel.sum() < 2:
             continue
-        fb.append(10 ** np.mean(np.log10(f[sel])))
+        fb.append(10 ** np.median(np.log10(f[sel])))
         for k in S:
             logS = np.log10(S[k][sel])
-            Sb[k].append(10 ** np.mean(logS))
-            sig[k].append(max(float(np.std(logS)), sigma_floor))
+            med = np.median(logS)
+            mad = np.median(np.abs(logS - med))     # robust, spike-resistant scatter
+            Sb[k].append(10 ** med)
+            sig[k].append(max(1.4826 * float(mad), sigma_floor))
     fb = np.asarray(fb)
     return fb, {k: np.asarray(v) for k, v in Sb.items()}, {k: np.asarray(v) for k, v in sig.items()}
 
