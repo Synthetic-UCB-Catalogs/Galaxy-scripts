@@ -115,6 +115,7 @@ def median_total_psd(f, aet, instr, window, fmax_crop=2e-2):
 # ---------------------------------------------------------------------- models
 def model_conf(f, theta, model):
     """Analytic confusion PSD S_conf(f; theta)."""
+    f = np.maximum(np.asarray(f, dtype=np.float64), 1e-12)   # floor the DC bin (f^-7/3)
     if model == "karnesis":
         A, alpha, f1, f2, fknee = theta
         return (A / 2.0) * f ** (-7.0 / 3.0) * np.exp(-(f / f1) ** alpha) \
@@ -449,11 +450,14 @@ def main():
     # --- corner (optional) ---
     try:
         import corner
-        fig = corner.corner(chain, labels=init["names"], show_titles=True)
+        fig = corner.corner(chain, labels=init["names"], show_titles=True,
+                            bins=40, smooth=1.0, plot_datapoints=False)
         fig.savefig(os.path.join(args.out, f"{code}_confusion_fit_{args.model}_corner.png"), dpi=120)
         plt.close(fig)
     except ImportError:
         print("    (corner not installed; skipping posterior corner plot)")
+    except Exception as e:
+        print(f"    (corner plot skipped: {e})")
 
 
 if __name__ == "__main__":
