@@ -277,7 +277,7 @@ def plot_curves(out_png, f, Smed, fS, Ssaved, instr, channel, fmin, fmax,
         ax.set_ylim(ymin, ymax * 3)
         ax.set_xlabel(r"Frequency [Hz]")
         ax.set_ylabel(r"PSD [1/Hz]")
-        ax.legend(loc="upper right")
+        ax.legend(loc="upper left")
         ax.grid(True, which="both", linestyle=":", linewidth=1.0)
         ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=8)
         fig.tight_layout()
