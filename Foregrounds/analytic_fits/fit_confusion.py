@@ -450,8 +450,14 @@ def main():
     # --- corner (optional) ---
     try:
         import corner
-        fig = corner.corner(chain, labels=init["names"], show_titles=True,
-                            bins=40, smooth=1.0, plot_datapoints=False)
+        fig = corner.corner(chain, labels=init["names"], show_titles=False,
+                            quantiles=[0.16, 0.5, 0.84], bins=40, smooth=1.0, plot_datapoints=False)
+        # custom titles: corner's default .2f rounds the tiny (1e-44, 1e-3) values to 0.00;
+        # use 3 significant figures so every parameter is informative.
+        axes = np.array(fig.axes).reshape((ndim, ndim))
+        for i, nm in enumerate(init["names"]):
+            q16, q50, q84 = np.percentile(chain[:, i], [16, 50, 84])
+            axes[i, i].set_title(f"{nm} = {q50:.3g} (+{q84 - q50:.2g}/-{q50 - q16:.2g})", fontsize=9)
         fig.savefig(os.path.join(args.out, f"{code}_confusion_fit_{args.model}_corner.png"), dpi=120)
         plt.close(fig)
     except ImportError:
