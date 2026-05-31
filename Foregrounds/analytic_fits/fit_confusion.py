@@ -6,9 +6,11 @@ Reads a `{code}_output_cat_snr{X}.h5` written by main_loop (gwg.utils.to_h5):
   - key "S":   the final smoothed total PSD (mean-smoothed; = confusion + instrument)
 
 main_loop smooths with a running MEAN (config `methoduse: mean`), which leaves spikes
-from high-SNR residual sources. For the fit we re-smooth the residual with a running
-MEDIAN (gwg's `methoduse: median` path: ndimage.median_filter x chi^2 debias norm),
-add the instrument PSD, and fit
+from high-SNR residual sources. For the fit we log-bin the residual periodogram and, within
+each bin, **sigma-clip the exponential confusion power to reject bright-source outliers**
+(dense near-threshold clusters that a plain median can't remove), take the clean-mean
+confusion level, add the instrument PSD, and fit (a median-smoothed curve is still shown for
+the plot/band). The model is
 
     S_total(f) = S_instr(f) + R(f) * S_conf_strain(f; theta)
 
@@ -112,6 +114,19 @@ def median_total_psd(f, aet, instr, window, fmax_crop=2e-2):
     return fc, Smed
 
 
+def confusion_periodogram(f, aet, fmax_crop=2e-2):
+    """Raw confusion periodogram P_k = 2*df*|AET_k|^2 (signal power, NO instrument),
+    cropped to f <= fmax_crop. The merged TDI is signal-only (instrument noise is added
+    analytically, not as a realization), so P is the stochastic-confusion power and is
+    exponentially distributed (chi^2_2); bright unsubtracted sources are high outliers.
+    """
+    df = np.abs(f[1] - f[0])
+    crop = f <= fmax_crop
+    fc = f[crop]
+    P = {k: 2.0 * df * np.abs(aet[k][crop]) ** 2 for k in ("A", "E", "T")}
+    return fc, P
+
+
 # ---------------------------------------------------------------------- models
 def model_conf(f, theta, model):
     """Analytic confusion PSD S_conf(f; theta)."""
@@ -145,38 +160,61 @@ BOUNDS = {
 
 
 # ------------------------------------------------------------- coarse-graining
-def coarse_grain(f, S, fmin, fmax, n_per_decade=250, sigma_floor=0.05):
-    """Log-bin the in-band curve into ~uncorrelated points (Karnesis-style).
+def _clip_exponential(p, kappa):
+    """Iterative sigma-clip of an exponential sample: reject the bright-source tail.
 
-    The median curve is window-correlated (~2000-bin filter), so fitting every bin
-    as independent overcounts information and shrinks the error bars. We bin to
-    ~n_per_decade log-spaced bins and fit one point per bin. Each bin value is the
-    MEDIAN of log10(S) (back in linear) and its sigma is a robust scatter, 1.4826*MAD
-    of log10(S), floored at sigma_floor. Median+MAD are spike-resistant: a stray
-    high-SNR source in a bin neither biases the point nor reads as a confident
-    measurement (its MAD-sigma inflates, so the fit down-weights it). Bins with <2
-    samples are dropped.
+    Start from a robust level (median/ln2 = unbiased exponential mean), reject samples
+    > kappa*level, recompute the mean of the kept samples, iterate to convergence. For a
+    genuine exponential the kept fraction below kappa*mean is 1 - e^-kappa (~99.3% at
+    kappa=5), so noise is retained while sources (p >> mean) are removed. Returns
+    (level, n_keep): the clean-mean confusion level and the number of retained bins.
     """
+    keep = p <= kappa * (np.median(p) / 0.6931471805599453)
+    for _ in range(10):
+        if keep.sum() < 3:
+            keep = np.ones(p.size, dtype=bool)
+            break
+        lvl = float(p[keep].mean())
+        new = p <= kappa * lvl
+        if int(new.sum()) == int(keep.sum()):
+            break
+        keep = new
+    return float(p[keep].mean()), int(keep.sum())
+
+
+def coarse_grain(f, P, fmin, fmax, n_per_decade=250, kappa=5.0, min_keep=8):
+    """Log-bin the band and, within each bin, reject bright-source outliers from the raw
+    (exponential) confusion periodogram by sigma-clipping, then return the clean confusion
+    level and its standard error per bin.
+
+    Binning to ~n_per_decade log bins decorrelates the curve (each bin ~ one independent
+    point). Within a bin the periodogram is exponential (mean = local PSD); the clip
+    (`_clip_exponential`) removes the dense near-threshold source clusters that the plain
+    median can't reject. Returns (fb, {k: conf_level}, {k: se}): geometric bin centres, the
+    clean confusion PSD per bin (instrument NOT included -- add it in the model), and the
+    standard error of that level (exponential: std = mean, so se = level/sqrt(N_keep)).
+    Bins with < min_keep raw samples are dropped.
+    """
+    chans = list(P.keys())
     if f.size == 0 or fmax <= fmin:
-        empty = np.array([])
-        return empty, {k: empty for k in S}, {k: empty for k in S}
+        e = np.array([])
+        return e, {k: e for k in chans}, {k: e for k in chans}
     nbins = max(int(np.ceil(n_per_decade * np.log10(fmax / fmin))), 4)
     edges = np.logspace(np.log10(fmin), np.log10(fmax), nbins + 1)
     which = np.digitize(f, edges)
-    fb, Sb, sig = [], {k: [] for k in S}, {k: [] for k in S}
+    fb, lvl_out, se_out = [], {k: [] for k in chans}, {k: [] for k in chans}
     for b in range(1, nbins + 1):
         sel = which == b
-        if sel.sum() < 2:
+        if sel.sum() < min_keep:
             continue
-        fb.append(10 ** np.median(np.log10(f[sel])))
-        for k in S:
-            logS = np.log10(S[k][sel])
-            med = np.median(logS)
-            mad = np.median(np.abs(logS - med))     # robust, spike-resistant scatter
-            Sb[k].append(10 ** med)
-            sig[k].append(max(1.4826 * float(mad), sigma_floor))
+        fb.append(10 ** np.mean(np.log10(f[sel])))
+        for k in chans:
+            level, n = _clip_exponential(P[k][sel], kappa)
+            lvl_out[k].append(level)
+            se_out[k].append(level / np.sqrt(max(n, 1)))   # exponential: std = mean
     fb = np.asarray(fb)
-    return fb, {k: np.asarray(v) for k, v in Sb.items()}, {k: np.asarray(v) for k, v in sig.items()}
+    return (fb, {k: np.asarray(v) for k, v in lvl_out.items()},
+            {k: np.asarray(v) for k, v in se_out.items()})
 
 
 # ----------------------------------------------------------------- likelihood
@@ -306,8 +344,10 @@ def main():
                     help="restrict the fit to bins where median total > this * instrument (confusion-dominated)")
     ap.add_argument("--n-per-decade", type=int, default=cfg.get("n_per_decade", 250),
                     help="log-bins per frequency decade for coarse-graining the fit curve")
+    ap.add_argument("--kappa", type=float, default=cfg.get("kappa", 5.0),
+                    help="within-bin exponential sigma-clip threshold (reject periodogram > kappa*level)")
     ap.add_argument("--log-sigma", type=float, default=cfg.get("log_sigma", 0.05),
-                    help="floor on the per-bin log10-PSD scatter used as the Gaussian sigma")
+                    help="floor on the per-bin log10-PSD sigma used in the Gaussian likelihood")
     ap.add_argument("--nwalkers", type=int, default=cfg.get("nwalkers", 32))
     ap.add_argument("--nsteps", type=int, default=cfg.get("nsteps", 5000))
     ap.add_argument("--nburn", type=int, default=cfg.get("nburn", 1500))
@@ -331,10 +371,11 @@ def main():
     channels = tuple(c.strip() for c in args.channels.split(","))
     os.makedirs(args.out, exist_ok=True)
 
-    # --- preprocess: median-smoothed total PSD on the residual ---
+    # --- preprocess: median curve (for band + plot) AND raw periodogram (for the fit) ---
     f_full, aet = load_residual_tdi(h5)
     instr_full = instrument_aet(f_full)
     f, Smed = median_total_psd(f_full, aet, instr_full, args.window, fmax_crop=args.fmax_crop)
+    _, Praw = confusion_periodogram(f_full, aet, fmax_crop=args.fmax_crop)   # same grid as f
     instr = instrument_aet(f)
     fS, Ssaved = load_saved_psd(h5)        # the pipeline's mean-smoothed curve, for comparison
     ref = channels[0]
@@ -355,13 +396,22 @@ def main():
           f"confusion-dominated fit band [{fmin:.2e}, {fmax:.2e}] Hz ({mask.sum()} bins), "
           f"channels {channels}, model {args.model}")
 
-    # --- coarse-grain the confusion-dominated band to ~uncorrelated log points ---
-    fb, Sb, sigb = coarse_grain(f[mask], {k: Smed[k][mask] for k in channels}, fmin, fmax,
-                                n_per_decade=args.n_per_decade, sigma_floor=args.log_sigma)
-    Imb = instrument_aet(fb) if fb.size else {k: np.array([]) for k in channels}
+    # --- coarse-grain the band: within-bin exponential sigma-clip of the raw periodogram
+    # (rejects bright-source outliers), giving the clean confusion level per bin. ---
+    fb, conf_lvl, conf_se = coarse_grain(f[mask], {k: Praw[k][mask] for k in channels}, fmin, fmax,
+                                         n_per_decade=args.n_per_decade, kappa=args.kappa)
+    if fb.size:
+        Imb = instrument_aet(fb)
+        Sb = {k: conf_lvl[k] + Imb[k] for k in channels}                       # total = conf + instr
+        sigb = {k: np.maximum(conf_se[k] / (Sb[k] * np.log(10.0)), args.log_sigma)
+                for k in channels}                                            # log10 sigma on total
+    else:
+        Imb = {k: np.array([]) for k in channels}
+        Sb = {k: np.array([]) for k in channels}
+        sigb = {k: np.array([]) for k in channels}
     binned = (fb, Sb[ref], sigb[ref]) if fb.size else None
-    print(f"[{code}] coarse-grained to {fb.size} log-bins (~{args.n_per_decade}/decade) "
-          f"from {int(mask.sum())} median bins")
+    print(f"[{code}] coarse-grained to {fb.size} log-bins (~{args.n_per_decade}/decade, "
+          f"kappa={args.kappa}) from {int(mask.sum())} band bins")
 
     # --- preprocessing-only diagnostic: curves + coarse-grained points, then exit ---
     if args.preprocess_only:
@@ -389,7 +439,7 @@ def main():
     # peak. The shape params (frequencies, slopes) keep the Karnesis starting point.
     Rb = stochastic_response(fb)
     shape_unit = Rb * model_conf(fb, [1.0] + theta0[1:], args.model)
-    conf_b = np.maximum(Sb[ref] - Imb[ref], 0.0)
+    conf_b = np.maximum(conf_lvl[ref], 0.0)        # clipped confusion level (instrument removed)
     good = (conf_b > 0) & (shape_unit > 0.3 * np.nanmax(shape_unit))
     A_init = float(np.median(conf_b[good] / shape_unit[good])) if good.any() else theta0[0]
     theta0[0] = A_init

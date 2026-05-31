@@ -11,7 +11,8 @@ conf_floor: 1.3        # fit only bins where median total > conf_floor * instrum
 fmin: null             # fit band low edge [Hz]; null -> inferred from the curve
 fmax: null             # fit band high edge [Hz]; null -> inferred from the curve
 n_per_decade: 250      # log-bins per decade for coarse-graining (decorrelates the curve)
-log_sigma: 0.05        # floor on the per-bin log10-PSD scatter used as the Gaussian sigma
+kappa: 5.0             # within-bin exponential sigma-clip: reject periodogram bins > kappa*level
+log_sigma: 0.05        # floor on the per-bin log10-PSD sigma used in the Gaussian likelihood
 
 # emcee sampler
 nwalkers: 32
