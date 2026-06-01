@@ -155,7 +155,12 @@ def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
         tasks = [(tuple(c[ix] for c in cols), tobs, dt, tdi, g, batch)
                  for g, ix in enumerate(idx)]
         print(f"gbgpu SNR: {n:,} sources across {num_gpus} GPUs ({[len(ix) for ix in idx]} per chunk)")
-        with mp.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
+        # MUST use 'spawn', not the default 'fork': the parent has a CUDA context (even just
+        # getDeviceCount initializes it) and a CUDA context does not survive fork, so forked
+        # workers fail at setDevice with cudaErrorInitializationError. Spawn = fresh processes
+        # that initialize CUDA cleanly (this is what gen_waveforms does).
+        ctx = mp.get_context("spawn")
+        with ctx.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
             parts = pool.map(_snr_gbgpu_chunk_worker, tasks)
         return np.concatenate(parts)
     return _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu, batch, progress=True)
