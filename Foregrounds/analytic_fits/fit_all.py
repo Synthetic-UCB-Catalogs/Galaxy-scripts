@@ -40,6 +40,76 @@ def load_json(out_ic, code, model):
         return json.load(fh)
 
 
+def make_cumulative_plots(out_ic, variation, model, n_band, codes):
+    """Per-ICV summary overlay of just the fitted curves (instr + R(f)*S_conf) for all codes,
+    one colour each -- no noisy tdi. Writes two figures:
+      {variation}_confusion_fits_{model}.png       median fit per code
+      {variation}_confusion_fits_band_{model}.png  median + n_band posterior-draw thin lines/code
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    sys.path.insert(0, HERE)
+    import importlib
+    fc = importlib.import_module("fit_confusion")   # model_conf, stochastic_response, instrument_aet
+
+    fits = []
+    for code in codes:
+        res = load_json(out_ic, code, model)
+        if res is None:
+            continue
+        names = list(res["coefficients"].keys())
+        theta = np.array([res["coefficients"][n]["median"] for n in names], dtype=float)
+        sp = os.path.join(out_ic, f"{code}_confusion_fit_{model}_samples.npy")
+        samples = np.load(sp) if os.path.exists(sp) else None
+        ch = (res.get("channels") or ["A"])[0]
+        fits.append((code, theta, samples, ch))
+    if not fits:
+        return
+
+    f = np.logspace(-4, -2, 800)
+    instr = fc.instrument_aet(f)
+    R = fc.stochastic_response(f)
+    colors = plt.cm.tab10(np.linspace(0, 1, 10))
+    ref = fits[0][3]
+    band_view = (f >= 2e-4) & (f <= 5e-3)
+
+    def total(theta, ch):
+        return instr[ch] + R * fc.model_conf(f, theta, model)
+
+    for kind in ("fits", "band"):
+        with plt.rc_context({"font.size": 12, "axes.labelsize": 14, "xtick.labelsize": 12,
+                             "ytick.labelsize": 12, "legend.fontsize": 10}):
+            fig, ax = plt.subplots(figsize=(9, 6))
+            ymax = float(instr[ref].min())
+            for i, (code, theta, samples, ch) in enumerate(fits):
+                c = colors[i % 10]
+                if kind == "band" and samples is not None and len(samples):
+                    sel = np.random.default_rng(0).choice(len(samples), min(n_band, len(samples)), replace=False)
+                    for th in samples[sel]:
+                        ax.loglog(f, total(th, ch), color=c, lw=0.4, alpha=0.12)
+                tot = total(theta, ch)
+                ax.loglog(f, tot, color=c, lw=2, label=code)
+                ymax = max(ymax, float(np.nanmax(tot[band_view])))
+            ax.loglog(f, instr[ref], "k--", lw=1.0, alpha=0.6, label="instrument")
+            ax.set_xlim(1e-4, 1e-2)
+            ax.set_ylim(float(instr[ref].min()) * 0.5, ymax * 3)
+            ax.set_xlabel(r"Frequency [Hz]")
+            ax.set_ylabel(r"PSD [1/Hz]")
+            ax.text(0.98, 0.98, f"{variation} ({ref})", transform=ax.transAxes,
+                    ha="right", va="top", fontsize=13)
+            ax.legend(loc="upper left", ncol=2)
+            ax.grid(True, which="both", linestyle=":", linewidth=1.0)
+            ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=8)
+            fig.tight_layout()
+            suffix = "fits" if kind == "fits" else "fits_band"
+            out_png = os.path.join(out_ic, f"{variation}_confusion_{suffix}_{model}.png")
+            fig.savefig(out_png, dpi=150)
+            plt.close(fig)
+            print(f"[{variation}] cumulative {kind} plot -> {out_png}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -52,6 +122,8 @@ def main():
     ap.add_argument("--table", default=None, help="output CSV (default {out}/confusion_coeffs_{model}.csv)")
     ap.add_argument("--collect-only", action="store_true",
                     help="don't run fits; just aggregate JSONs already on disk")
+    ap.add_argument("--n-band", type=int, default=50,
+                    help="posterior draws per code in the cumulative band plot")
     args, extra = ap.parse_known_args()
 
     rows = []
@@ -85,6 +157,7 @@ def main():
                 row[name + "_minus"] = c["minus"]
                 row[name + "_plus"] = c["plus"]
             rows.append(row)
+        make_cumulative_plots(out_ic, variation, args.model, args.n_band, args.codes)
 
     if not rows:
         print("No fits to tabulate.")
