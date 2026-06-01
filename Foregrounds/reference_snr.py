@@ -87,7 +87,7 @@ _GBGPU_COLS = ("Amplitude", "Frequency", "FrequencyDerivative", "InitialPhase",
                "Inclination", "Polarization", "EclipticLongitude", "EclipticLatitude")
 
 
-def _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu, batch, progress=True):
+def _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu, batch, progress=True, desc="gbgpu SNR"):
     """Per-source no-FG SNR for one set of parameter arrays on the CURRENT device (the
     caller selects the GPU, or CPU). cols = arrays in the order of _GBGPU_COLS."""
     from gbgpu.gbgpu import GBGPU
@@ -104,7 +104,7 @@ def _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu, batch, progress=True):
     snr = np.empty(n, dtype=np.float64)
     loop = range(0, n, batch)
     if progress:
-        loop = _tqdm(loop, total=(n + batch - 1) // batch, desc=f"gbgpu SNR ({n:,} src)", unit="batch")
+        loop = _tqdm(loop, total=(n + batch - 1) // batch, desc=f"{desc} ({n:,} src)", unit="batch")
     for lo in loop:
         hi = min(lo + batch, n)
         sl = slice(lo, hi)
@@ -130,8 +130,10 @@ def _snr_gbgpu_chunk_worker(args):
     if device_id is not None:
         import cupy as cp
         cp.cuda.Device(device_id).use()
+    # per-worker tqdm bar labelled by GPU (like gen_waveforms): the bars interleave in the
+    # log, but each is tagged so you can follow all GPUs' progress.
     return _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu=(device_id is not None),
-                             batch=batch, progress=False)
+                             batch=batch, progress=True, desc=f"gbgpu SNR GPU{device_id}")
 
 
 def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
