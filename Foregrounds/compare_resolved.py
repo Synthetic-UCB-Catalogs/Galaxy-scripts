@@ -213,6 +213,85 @@ def _fmt(sub, valcol, pct=False):
     return f"{nominal:.{d}f} (+{ehi:.{d}f}/-{elo:.{d}f}){suffix}"
 
 
+def _icv_noise_curves(config, channel="A"):
+    """Per-code overlay of the final smoothed noise curve S (channel `channel`) across ICVs,
+    coloured by ICV with the same gist_rainbow + legend(VARIATIONS) scheme as the recovery
+    bar plots (reserved slots for missing ICVs) + the TDI1 instrument reference. No analytic
+    fits. Two figures per code:
+      figures/noise_curves_{code}.png       central (SNR>MONEY_CUTOFF) curve per ICV
+      figures/noise_curves_band_{code}.png  + SNR-threshold band shaded between snr5 and snr9
+    (lower cutoff subtracts more sources -> lower residual, so the band brackets the curve;
+    same cut5..cut9 span the bar plot shows as error bars). The band needs both the snr5 and
+    snr9 runs for that ICV; ICVs missing either just get the central curve.
+    """
+    base = config["datapath"]
+    colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(VARIATIONS)))
+    tdi = 1 if not config.get("tdi2", False) else 2
+    fref = np.logspace(-4, np.log10(2e-2), 2000)
+    instr = np.asarray(reference_snr._instrument_psd_fn(tdi)(fref)[0])
+    cuts = (5.0, MONEY_CUTOFF, 9.0)
+    os.makedirs("figures", exist_ok=True)
+
+    def _load(h5):
+        S = gwg.utils.load_h5(h5, key="S")
+        fa = np.asarray(S["f"]); Sa = np.abs(np.asarray(S[channel]))
+        m = (fa >= 5e-5) & (fa <= 2.5e-2)
+        fa, Sa = fa[m], Sa[m]
+        step = max(1, len(fa) // 5000)                # the curve is smooth; downsample for speed
+        return fa[::step], Sa[::step]
+
+    for code in CODES:
+        per_icv = {}                                  # j -> (fa, {cutoff: Sa}); fa shared across cutoffs
+        for j, var in enumerate(VARIATIONS):
+            outpath = os.path.join(config["outputpath"], datapath_for_variation(base, var))
+            fa, byc = None, {}
+            for cut in cuts:
+                h5 = os.path.join(outpath, f"{code}_output_cat_snr{cut:g}.h5")
+                if not os.path.exists(h5):
+                    continue
+                try:
+                    fa, byc[cut] = _load(h5)
+                except Exception:
+                    continue
+            if byc:
+                per_icv[j] = (fa, byc)
+        if not per_icv:
+            continue
+        for kind in ("lines", "band"):
+            with plt.rc_context(_FONT_RC):
+                fig, ax = plt.subplots(figsize=(10, 5))
+                ymax = float(instr.min())
+                for j, var in enumerate(VARIATIONS):
+                    if j not in per_icv:
+                        ax.loglog([], [], color=colors[j], label=var)   # reserved slot (mirror bar plot)
+                        continue
+                    fa, byc = per_icv[j]
+                    central = byc.get(MONEY_CUTOFF, byc[sorted(byc)[len(byc) // 2]])
+                    ax.loglog(fa, central, color=colors[j], lw=1.5, label=var)
+                    iv = (fa >= 1e-4) & (fa <= 2e-2)
+                    if iv.any():
+                        ymax = max(ymax, float(np.nanmax(central[iv])))
+                    if kind == "band" and 5.0 in byc and 9.0 in byc:
+                        ax.fill_between(fa, byc[5.0], byc[9.0], color=colors[j], alpha=0.25, lw=0)
+                ax.loglog(fref, instr, "k--", lw=1.2, alpha=0.6, label="instrument")
+                ax.set_xlim(1e-4, 2e-2)
+                ax.set_ylim(max(float(instr.min()) * 0.5, 1e-44), ymax * 2)
+                ax.set_xlabel(r"Frequency [Hz]")
+                ax.set_ylabel(r"PSD [1/Hz]")
+                ax.legend()                            # labelled lines only -> ICV colour key + instrument
+                ax.text(0.98, 0.98, code, transform=ax.transAxes, ha="right", va="top", fontsize=14)
+                ax.grid(True, linestyle=":", linewidth=1.0)
+                ax.xaxis.set_ticks_position("both")
+                ax.yaxis.set_ticks_position("both")
+                ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
+                fig.tight_layout()
+                suffix = "" if kind == "lines" else "_band"
+                out = os.path.join("figures", f"noise_curves{suffix}_{code}.png")
+                fig.savefig(out, dpi=150)
+                print(f"saved {out}")
+                plt.close(fig)
+
+
 def main():
     os.environ.setdefault("EXPERIMENT_ROOT", "./")
     config = load_and_prepare_config("config.yaml")
@@ -269,6 +348,9 @@ def main():
     for key, label, outfile, ylim in RECOVERY_REFS:
         if tab[f"recovery_{key}"].notna().any():
             _icv_bar_plot(tab, f"recovery_{key}", label, outfile, ylim=ylim, legend=False)
+
+    # Per-code noise-curve overlay across ICVs (same colour/legend scheme as the bar plots).
+    _icv_noise_curves(config)
 
 
 if __name__ == "__main__":
