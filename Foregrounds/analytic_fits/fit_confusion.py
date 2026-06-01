@@ -64,11 +64,27 @@ def load_residual_tdi(h5_path):
 
 
 def load_saved_psd(h5_path):
-    """Return (f, {A,E,T: real PSD}) from the 'S' key (the mean-smoothed pipeline curve)."""
+    """Return (f, {A,E,T: real PSD}) from the 'S' key (the pipeline-smoothed curve)."""
     df = pd.read_hdf(h5_path, key="S")
     f = np.asarray(df["f"].values, dtype=np.float64)
     S = {k: np.real(np.asarray(df[k].values)).astype(np.float64) for k in ("A", "E", "T")}
     return f, S
+
+
+def read_methoduse(h5_path):
+    """Read icloop_kwargs.methoduse ('mean'/'median') from the run-config snapshot saved next
+    to the h5 ({code}_run_config_snr{X}.yaml), so the legend reflects the actual pipeline
+    smoothing. Returns the method string, or None if the snapshot/key is absent."""
+    rc = os.path.splitext(h5_path.replace("_output_cat_", "_run_config_"))[0] + ".yaml"
+    if not os.path.exists(rc):
+        return None
+    try:
+        import yaml
+        with open(rc) as fh:
+            cfg = yaml.safe_load(fh) or {}
+        return cfg.get("icloop_kwargs", {}).get("methoduse")
+    except Exception:
+        return None
 
 
 def instrument_aet(f):
@@ -250,9 +266,10 @@ def _log_prob(theta):
 
 # ------------------------------------------------------------------- plotting
 def plot_curves(out_png, f, Smed, fS, Ssaved, instr, channel, fmin, fmax,
-                model_curve=None, model_label="fit", binned=None):
-    """Overlay: median total (fit input), pipeline mean total, instrument, the
-    coarse-grained fit points, and an optional fitted model."""
+                model_curve=None, model_label="fit", binned=None, code=None, method=None):
+    """Overlay: median total (fit input), pipeline-smoothed total, instrument, the
+    coarse-grained fit points, and an optional fitted model. `method` (mean/median, read from
+    the run-config) labels the pipeline curve; `code` is annotated top-right."""
     xlo, xhi = 1e-4, 2e-2
     with plt.rc_context({"font.size": 12, "axes.labelsize": 14, "xtick.labelsize": 12,
                          "ytick.labelsize": 12, "legend.fontsize": 11}):
@@ -260,7 +277,7 @@ def plot_curves(out_png, f, Smed, fS, Ssaved, instr, channel, fmin, fmax,
         ax.loglog(f, Smed[channel], color="0.6", lw=1.0, label=f"median total ({channel})")
         if Ssaved is not None and channel in Ssaved:
             ax.loglog(fS, Ssaved[channel], color="orange", lw=0.7, alpha=0.7,
-                      label=f"pipeline mean total ({channel})")
+                      label=f"pipeline {method or 'smoothed'} total ({channel})")
         ax.loglog(f, instr[channel], "k--", lw=1.5, label="instrument (TDI1)")
         if binned is not None:
             fb, Sb, sg = binned
@@ -277,6 +294,8 @@ def plot_curves(out_png, f, Smed, fS, Ssaved, instr, channel, fmin, fmax,
         ax.set_ylim(ymin, ymax * 3)
         ax.set_xlabel(r"Frequency [Hz]")
         ax.set_ylabel(r"PSD [1/Hz]")
+        if code:
+            ax.text(0.98, 0.98, code, transform=ax.transAxes, ha="right", va="top", fontsize=14)
         ax.legend(loc="upper left")
         ax.grid(True, which="both", linestyle=":", linewidth=1.0)
         ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=8)
@@ -368,6 +387,7 @@ def main():
         ap.error("provide --dir and --code (or an explicit --h5)")
     if not os.path.exists(h5):
         ap.error(f"h5 not found: {h5}")
+    method = read_methoduse(h5)    # 'mean'/'median' from the run-config snapshot, for the legend
     channels = tuple(c.strip() for c in args.channels.split(","))
     os.makedirs(args.out, exist_ok=True)
 
@@ -416,7 +436,8 @@ def main():
     # --- preprocessing-only diagnostic: curves + coarse-grained points, then exit ---
     if args.preprocess_only:
         out_png = os.path.join(args.out, f"{code}_confusion_preprocess.png")
-        plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax, binned=binned)
+        plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax, binned=binned,
+                    code=code, method=method)
         print(f"[{code}] preprocess-only: wrote median-vs-mean comparison, skipping fit.")
         return
 
@@ -486,6 +507,12 @@ def main():
     with open(out_json, "w") as fh:
         json.dump(result, fh, indent=2)
     print(f"[{code}] coefficients -> {out_json}")
+
+    # save a subset of posterior draws (param order = init["names"]) for the cumulative
+    # band plot in fit_all (tiny file; full chain would be ~100 MB).
+    n_save = min(len(chain), 1000)
+    sub = chain[np.random.default_rng(1).choice(len(chain), n_save, replace=False)]
+    np.save(os.path.join(args.out, f"{code}_confusion_fit_{args.model}_samples.npy"), sub)
     for name in init["names"]:
         c = coeffs[name]
         print(f"    {name:6s} = {c['median']:.4g} (+{c['plus']:.2g}/-{c['minus']:.2g})")
@@ -495,7 +522,7 @@ def main():
     out_png = os.path.join(args.out, f"{code}_confusion_fit_{args.model}.png")
     plot_curves(out_png, f, Smed, fS, Ssaved, instr, ref, fmin, fmax,
                 model_curve=instr[ref] + conf_fit, model_label=f"fit: instr + R(f)·S_conf ({args.model})",
-                binned=binned)
+                binned=binned, code=code, method=method)
 
     # --- corner (optional) ---
     try:
