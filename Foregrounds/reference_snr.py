@@ -83,29 +83,29 @@ def _instrument_psd_fn(tdi: int):
     raise ValueError(f"tdi must be 1 or 2, got {tdi}")
 
 
-def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
-    """Per-source no-FG SNR with gbgpu + instrument-only PSD (actual sky position)."""
+_GBGPU_COLS = ("Amplitude", "Frequency", "FrequencyDerivative", "InitialPhase",
+               "Inclination", "Polarization", "EclipticLongitude", "EclipticLatitude")
+
+
+def _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu, batch, progress=True):
+    """Per-source no-FG SNR for one set of parameter arrays on the CURRENT device (the
+    caller selects the GPU, or CPU). cols = arrays in the order of _GBGPU_COLS."""
     from gbgpu.gbgpu import GBGPU
     import lisatools.detector as lisa_models
-    # Match the pipeline's construction (gen_waveforms/main_loop): the orbits'
-    # GPU setting must match GBGPU's, otherwise orbits.get_pos hits a GPU/CPU
-    # array mismatch when use_gpu=True.
+    # Match the pipeline's construction (gen_waveforms/main_loop): the orbits' GPU setting
+    # must match GBGPU's, else orbits.get_pos hits a GPU/CPU array mismatch when use_gpu=True.
     orbits = lisa_models.EqualArmlengthOrbits(use_gpu=use_gpu)
     gb = GBGPU(orbits=orbits, use_gpu=use_gpu)
     psd = _instrument_psd_fn(tdi)
     T_sec = tobs * Constants.yr
     df_bin = 1.0 / T_sec
-
-    cols = ("Amplitude", "Frequency", "FrequencyDerivative", "InitialPhase",
-            "Inclination", "Polarization", "EclipticLongitude", "EclipticLatitude")
-    amp, f0, fdot, phi0, iota, psi, lam, beta = (
-        cat_df[c].values.astype(np.float64) for c in cols)
+    amp, f0, fdot, phi0, iota, psi, lam, beta = cols
     n = len(amp)
     snr = np.empty(n, dtype=np.float64)
-
-    n_batches = (n + batch - 1) // batch
-    for lo in _tqdm(range(0, n, batch), total=n_batches,
-                    desc=f"gbgpu SNR ({n:,} src)", unit="batch"):
+    loop = range(0, n, batch)
+    if progress:
+        loop = _tqdm(loop, total=(n + batch - 1) // batch, desc=f"gbgpu SNR ({n:,} src)", unit="batch")
+    for lo in loop:
         hi = min(lo + batch, n)
         sl = slice(lo, hi)
         gb.run_wave(amp[sl], f0[sl], fdot[sl], np.zeros(hi - lo),
@@ -121,6 +121,44 @@ def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
         )
         snr[sl] = np.sqrt(np.maximum(snr2, 0.0))
     return snr
+
+
+def _snr_gbgpu_chunk_worker(args):
+    """Top-level multiprocessing worker: bind to a GPU, compute the chunk's SNR. CUDA is
+    touched ONLY here (never in the parent) so the fork-based pool is safe (cf. gen_waveforms)."""
+    cols, tobs, dt, tdi, device_id, batch = args
+    if device_id is not None:
+        import cupy as cp
+        cp.cuda.Device(device_id).use()
+    return _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu=(device_id is not None),
+                             batch=batch, progress=False)
+
+
+def per_source_snr_gbgpu(cat_df, tobs, dt, tdi=1, use_gpu=False, batch=10000):
+    """Per-source no-FG SNR with gbgpu + instrument-only PSD (actual sky position).
+
+    On a multi-GPU allocation the catalogue is split into one chunk per visible GPU and the
+    chunks run in parallel (one process per GPU, mirroring gen_waveforms), then the SNRs are
+    concatenated back in catalogue order. Single-GPU / CPU runs use the same per-chunk code on
+    one device. The parent does only numpy splitting + getDeviceCount (no CUDA context) so the
+    fork pool is safe.
+    """
+    cols = tuple(cat_df[c].values.astype(np.float64) for c in _GBGPU_COLS)
+    n = len(cols[0])
+    num_gpus = 0
+    if use_gpu:
+        import cupy as cp
+        num_gpus = cp.cuda.runtime.getDeviceCount()
+    if use_gpu and num_gpus > 1:
+        import multiprocessing as mp
+        idx = np.array_split(np.arange(n), num_gpus)
+        tasks = [(tuple(c[ix] for c in cols), tobs, dt, tdi, g, batch)
+                 for g, ix in enumerate(idx)]
+        print(f"gbgpu SNR: {n:,} sources across {num_gpus} GPUs ({[len(ix) for ix in idx]} per chunk)")
+        with mp.Pool(processes=num_gpus, maxtasksperchild=1) as pool:
+            parts = pool.map(_snr_gbgpu_chunk_worker, tasks)
+        return np.concatenate(parts)
+    return _snr_gbgpu_single(cols, tobs, dt, tdi, use_gpu, batch, progress=True)
 
 
 def per_source_snr_legwork(alldwds_df, tobs, confusion=None, batch=200000):
