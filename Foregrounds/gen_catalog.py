@@ -36,6 +36,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     code = args.code
     df = explore_csv(code, config)
+    if df is None:
+        raise SystemExit(f"ERROR: no input catalog for {code} under {config['datapath']} "
+                         f"(expected {code}_Galaxy_AllDWDs.csv); aborting this code.")
 
     PP = df.PSetTodayHours.values.copy()
     PP = PP * Constants.hr   # s
