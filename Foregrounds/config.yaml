@@ -22,7 +22,7 @@ icloop_kwargs:        # kwargs for gwg main loop
   # snr_cutoff is REQUIRED on the CLI (main_loop --snr-cutoff; sweep_snr7.sbatch passes 7)
   # and has NO default here on purpose, same rationale as datapath above. It is injected
   # into this dict at run time and converted to the gwg kwarg snr_thresh2 = snr_cutoff**2.
-  methoduse: "mean"   # smoothing method: running median or mean
+  methoduse: "median"   # smoothing method: running median or mean
   window_size: 2000   # window size for the smoothing; changed notation for convenience; the kwarg's name "deltaf"
   maxiter: 20         # maximum number of iterations (stopping condition)
   tol: 0.01           # relative change (stopping condition)
