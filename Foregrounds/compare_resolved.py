@@ -26,6 +26,7 @@ Usage:
 import os
 import re
 import glob
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -65,6 +66,34 @@ def discover_runs(outpath, code):
         if m:
             runs.append((float(m.group(1)), cat_path))
     return runs
+
+
+def discover_leaves(outputpath, mc_prefix):
+    """Discover every catalog leaf under outputpath/mc_prefix that holds at least one
+    {code}_output_cat_snr*.h5, as [(datapath_rel, family, variation)].
+
+    Generalizes the old hardcoded 6-ICV loop to whatever is on disk, so both the flat
+    initial_condition_variations/{var}/ layout and the nested
+    mass_transfer_variations/{subfamily}/{var}/ layout are picked up. `family` is the
+    taxonomy folder; `variation` is the leaf dir name. The same variation name can occur
+    under both families (e.g. a 'fiducial' in each), so callers key on (family, variation).
+    """
+    root = os.path.join(outputpath, mc_prefix)
+    leaves = {}
+    for cat in glob.glob(os.path.join(root, "**", "*_output_cat_snr*.h5"), recursive=True):
+        leafdir = os.path.dirname(cat)
+        rel = os.path.relpath(leafdir, outputpath)
+        if rel in leaves:
+            continue
+        parts = rel.split(os.sep)
+        if "initial_condition_variations" in parts:
+            family = "initial_condition_variations"
+        elif "mass_transfer_variations" in parts:
+            family = "mass_transfer_variations"
+        else:
+            family = "other"
+        leaves[rel] = (rel + os.sep, family, parts[-1])
+    return sorted(leaves.values())
 
 
 def resolved_count(cat_path):
@@ -293,16 +322,25 @@ def _icv_noise_curves(config, channel="A"):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--datapath", required=True,
+                    help="any catalog subpath in the tree to analyze; only its top component "
+                         "(monte_carlo_comparisons[_lightweight_500K_DWDs]) is used to scope "
+                         "discovery. REQUIRED; no config.yaml default, matching the pipeline scripts.")
+    args = ap.parse_args()
     os.environ.setdefault("EXPERIMENT_ROOT", "./")
     config = load_and_prepare_config("config.yaml")
-    base_datapath = config["datapath"]
+    base_datapath = args.datapath
     use_gpu = config.get("use_gpu", False)
     ref_keys = [k for k, _, _, _ in RECOVERY_REFS]
 
-    # Build a (code, ICV, cutoff) table from whatever runs exist under each ICV dir.
+    # Discover EVERY catalog leaf with output under the active monte_carlo_comparisons[
+    # _lightweight] tree — ICV (flat) and MTV (nested) alike — instead of looping the
+    # hardcoded 6-ICV list. Build a (code, family, variation, cutoff) recovery table.
+    mc_prefix = base_datapath.rstrip("/").split("/")[0]
+    leaves = discover_leaves(config["outputpath"], mc_prefix)
     records = []
-    for var in VARIATIONS:
-        var_datapath = datapath_for_variation(base_datapath, var)
+    for var_datapath, family, variation in leaves:
         outpath = os.path.join(config["outputpath"], var_datapath)
         inpath = os.path.join(config["inputpath"], var_datapath)
         for code in CODES:
@@ -313,7 +351,8 @@ def main():
             ref = load_reference(code, config, outpath, inpath, var_datapath, cuts_here, use_gpu)
             for cutoff, cat_path in runs:
                 res = resolved_count(cat_path)
-                rec = {"code": code, "variation": var, "cutoff": cutoff, "resolved": res}
+                rec = {"code": code, "family": family, "variation": variation,
+                       "datapath": var_datapath, "cutoff": cutoff, "resolved": res}
                 for key in ref_keys:
                     rec[f"recovery_{key}"] = np.nan
                     if ref is not None:
@@ -323,34 +362,49 @@ def main():
                 records.append(rec)
 
     if not records:
-        print("No runs found (expected {code}_output_cat_snr*.h5 under the ICV dirs).")
+        print(f"No runs found (expected {{code}}_output_cat_snr*.h5 under "
+              f"{os.path.join(config['outputpath'], mc_prefix)}).")
         return
     tab = pd.DataFrame(records)
     cutoffs = sorted(tab.cutoff.unique())
-    icvs_present = [v for v in VARIATIONS if v in set(tab.variation)]
     avail_refs = [(k, lbl) for k, lbl, _, _ in RECOVERY_REFS if tab[f"recovery_{k}"].notna().any()]
-    print(f"ICVs with output: {icvs_present}")
     print(f"snr_cutoff runs: {cutoffs}  (value = SNR>{MONEY_CUTOFF:g}; +hi/-lo spans the sweep)")
 
-    for var in icvs_present:
-        print(f"\n=== {var} ===")
-        for code in CODES:
-            sub = tab[(tab.code == code) & (tab.variation == var)]
-            if sub.empty:
-                continue
-            recs = "   ".join(f"rec[{k}] = {_fmt(sub, f'recovery_{k}', pct=True)}"
-                              for k, _ in avail_refs)
-            print(f"  {code:8s}  res = {_fmt(sub, 'resolved')}   {recs}")
+    # Numbers for every leaf (ICV + MTV), grouped by family then variation.
+    for family in sorted(tab.family.unique()):
+        for variation in sorted(tab[tab.family == family].variation.unique()):
+            print(f"\n=== {family}/{variation} ===")
+            for code in CODES:
+                sub = tab[(tab.code == code) & (tab.family == family) & (tab.variation == variation)]
+                if sub.empty:
+                    continue
+                recs = "   ".join(f"rec[{k}] = {_fmt(sub, f'recovery_{k}', pct=True)}"
+                                  for k, _ in avail_refs)
+                print(f"  {code:8s}  res = {_fmt(sub, 'resolved')}   {recs}")
 
-    # lisa_dwd_count_plotter convention: per-code grouped bars by ICV. Only the
-    # counts figure carries the legend; the recovery figures reuse it in the draft.
-    _icv_bar_plot(tab, "resolved", "Resolved DWDs", "compare_resolved.png", legend=True)
-    for key, label, outfile, ylim in RECOVERY_REFS:
-        if tab[f"recovery_{key}"].notna().any():
-            _icv_bar_plot(tab, f"recovery_{key}", label, outfile, ylim=ylim, legend=False)
+    # Full per-leaf recovery table to CSV (the durable artifact; MTV plotting deferred).
+    os.makedirs("figures", exist_ok=True)
+    csv_path = os.path.join("figures", "recovery_table.csv")
+    tab.sort_values(["family", "variation", "code", "cutoff"]).to_csv(csv_path, index=False)
+    print(f"\nsaved {csv_path}  ({len(tab)} rows, families: {sorted(tab.family.unique())})")
 
-    # Per-code noise-curve overlay across ICVs (same colour/legend scheme as the bar plots).
-    _icv_noise_curves(config)
+    # ICV grouped bar plots (lisa_dwd_count_plotter convention): _icv_bar_plot / _icv_noise_curves
+    # iterate the VARIATIONS ICV list, so MTV rows are naturally excluded. MTV plotting is deferred
+    # (numbers + CSV only for now); the bars below render only when ICV output is present.
+    icv_tab = tab[tab.family == "initial_condition_variations"]
+    if not icv_tab.empty:
+        _icv_bar_plot(icv_tab, "resolved", "Resolved DWDs", "compare_resolved.png", legend=True)
+        for key, label, outfile, ylim in RECOVERY_REFS:
+            if icv_tab[f"recovery_{key}"].notna().any():
+                _icv_bar_plot(icv_tab, f"recovery_{key}", label, outfile, ylim=ylim, legend=False)
+        # _icv_noise_curves derives each ICV path from config["datapath"] (last component
+        # swapped per ICV); anchor it on a discovered ICV leaf so it works regardless of
+        # what config.yaml's datapath currently points at.
+        config["datapath"] = icv_tab.iloc[0]["datapath"]
+        _icv_noise_curves(config)
+    mtv_present = sorted(tab[tab.family == "mass_transfer_variations"].variation.unique())
+    if mtv_present:
+        print(f"MTV leaves with output (numbers + CSV only, grouped plots deferred): {mtv_present}")
 
 
 if __name__ == "__main__":

@@ -46,17 +46,19 @@ echo
 case "${SCRIPT_TO_RUN}" in
     gen_catalog.py)
         echo "--- Running Catalog Generation ---"
-        python gen_catalog.py --code "${RUN_CODE}"
+        # forward any extra args (e.g. --datapath) to gen_catalog
+        python gen_catalog.py --code "${RUN_CODE}" "${@:3}"
         ;;
 
     gen_waveforms.py)
         echo "--- Running Waveform Generation ---"
-        python gen_waveforms.py --code "${RUN_CODE}"
+        # forward any extra args (e.g. --datapath) to gen_waveforms
+        python gen_waveforms.py --code "${RUN_CODE}" "${@:3}"
         ;;
 
     main_loop.py)
         echo "--- Running Main Loop ---"
-        # forward any extra args (e.g. --snr-cutoff) to main_loop
+        # forward any extra args (e.g. --snr-cutoff, --datapath) to main_loop
         python main_loop.py --code "${RUN_CODE}" "${@:3}"
         ;;
 

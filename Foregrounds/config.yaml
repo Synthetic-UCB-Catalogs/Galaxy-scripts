@@ -5,8 +5,12 @@ basepath: "${EXPERIMENT_ROOT}/data"
 inputpath: "${EXPERIMENT_ROOT}/input"
 outputpath: "${EXPERIMENT_ROOT}/output"
 waveformpath: "${EXPERIMENT_ROOT}/waveforms"
-#datapath: "monte_carlo_comparisons_lightweight_500K_DWDs/initial_condition_variations/fiducial/"
-datapath: "monte_carlo_comparisons/initial_condition_variations/fiducial/"
+# datapath is REQUIRED on the CLI (--datapath for the pipeline scripts, run_catalogs.sh
+# injects it) and has NO default here on purpose: a stale path can never be silently used.
+# Examples of the value to pass:
+#   monte_carlo_comparisons/initial_condition_variations/fiducial/
+#   monte_carlo_comparisons_lightweight_500K_DWDs/initial_condition_variations/fiducial/
+#   monte_carlo_comparisons/mass_transfer_variations/common_envelope/alpha_lambda_05/
 
 num_chunks: 3     # split the hdf5 catalog in a number of chunks (3 P6000s on Thorny Flat)
 
@@ -15,7 +19,9 @@ dt: 10            # cadence [seconds]; be mindful of the Nyquist frequency, 1/(2
 use_gpu: true
 tdi2: false           # TDI version for both gen_waveforms and icloop. False matches lisatools AET1SensitivityMatrix (TDI1) noise.
 icloop_kwargs:        # kwargs for gwg main loop
-  snr_cutoff: 7       # changed notation for convenience; this is converted to kwarg "snr_thresh2=snr_cutoff**2"
+  # snr_cutoff is REQUIRED on the CLI (main_loop --snr-cutoff; sweep_snr7.sbatch passes 7)
+  # and has NO default here on purpose, same rationale as datapath above. It is injected
+  # into this dict at run time and converted to the gwg kwarg snr_thresh2 = snr_cutoff**2.
   methoduse: "mean"   # smoothing method: running median or mean
   window_size: 2000   # window size for the smoothing; changed notation for convenience; the kwarg's name "deltaf"
   maxiter: 20         # maximum number of iterations (stopping condition)

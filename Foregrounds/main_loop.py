@@ -37,15 +37,19 @@ from helpers import Constants, apply_global_plot_settings, load_and_prepare_conf
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--code', type=str, required=True, help='Name of the code to use.')
-    parser.add_argument('--snr-cutoff', type=float, default=None,
-                        help='override icloop_kwargs.snr_cutoff from config; lets each '
-                             'queued run sweep a cutoff without editing the shared config.yaml')
+    parser.add_argument('--snr-cutoff', type=float, required=True,
+                        help='SNR cutoff for the main loop (REQUIRED; no config.yaml default, '
+                             'so a stale cutoff can never be silently reused). Written to '
+                             'icloop_kwargs.snr_cutoff and used as the per-run output suffix.')
+    parser.add_argument('--datapath', type=str, required=True,
+                        help='catalog subpath (REQUIRED; no config.yaml default). Must match the '
+                             'datapath gen_waveforms used so the cached waveforms are found.')
     args = parser.parse_args()
     code = args.code
 
     config = load_and_prepare_config('config.yaml')
-    if args.snr_cutoff is not None:
-        config['icloop_kwargs']['snr_cutoff'] = args.snr_cutoff
+    config['datapath'] = args.datapath
+    config['icloop_kwargs']['snr_cutoff'] = args.snr_cutoff
     with open('plot_config.yaml', 'r') as f:
         plot_settings = yaml.safe_load(f)
         
@@ -56,9 +60,9 @@ if __name__ == "__main__":
     os.makedirs(outpath, exist_ok=True)
     # Suffix per-run outputs with the SNR cutoff so runs at different snr_cutoff
     # don't overwrite each other in the shared output folder.
-    snr_cutoff = config['icloop_kwargs'].get('snr_cutoff', 7)
+    snr_cutoff = config['icloop_kwargs']['snr_cutoff']   # always set from the required --snr-cutoff
     run_tag = f"snr{snr_cutoff:g}"
-    # Snapshot the EFFECTIVE config (including any --snr-cutoff override) for the record.
+    # Snapshot the EFFECTIVE config (including the --snr-cutoff value) for the record.
     with open(os.path.join(outpath, f'{code}_run_config_{run_tag}.yaml'), 'w') as f:
         yaml.safe_dump(config, f, sort_keys=False)
 

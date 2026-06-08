@@ -117,10 +117,14 @@ if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
     parser = argparse.ArgumentParser()
     parser.add_argument('--code', type=str, required=True, help='Name of the simulation code to use.')
+    parser.add_argument('--datapath', type=str, required=True,
+                        help='catalog subpath (REQUIRED; no config.yaml default). The cache '
+                             'key includes datapath, so each leaf gets its own waveform cache.')
     args = parser.parse_args()
     code = args.code
 
     config = load_and_prepare_config('config.yaml')
+    config['datapath'] = args.datapath
     config['code'] = code # Add code to config for easy access in worker
 
     # Add num_chunks to config if not present, default to 1

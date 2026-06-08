@@ -33,8 +33,14 @@ rng = np.random.default_rng(seed=seed)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--code', type=str, required=True, help='Name of the code to use.')
+    parser.add_argument('--datapath', type=str, required=True,
+                        help='catalog subpath under data/input/waveforms/output (e.g. '
+                             'monte_carlo_comparisons/initial_condition_variations/qmin_01/). '
+                             'REQUIRED: there is no config.yaml default, so a stale path can '
+                             'never be silently reused.')
     args = parser.parse_args()
     code = args.code
+    config['datapath'] = args.datapath
     df = explore_csv(code, config)
     if df is None:
         raise SystemExit(f"ERROR: no input catalog for {code} under {config['datapath']} "
