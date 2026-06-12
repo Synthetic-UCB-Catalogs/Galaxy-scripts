@@ -508,11 +508,24 @@ def main():
         json.dump(result, fh, indent=2)
     print(f"[{code}] coefficients -> {out_json}")
 
-    # save a subset of posterior draws (param order = init["names"]) for the cumulative
-    # band plot in fit_all (tiny file; full chain would be ~100 MB).
-    n_save = min(len(chain), 1000)
-    sub = chain[np.random.default_rng(1).choice(len(chain), n_save, replace=False)]
-    np.save(os.path.join(args.out, f"{code}_confusion_fit_{args.model}_samples.npy"), sub)
+    # Full post-burn-in chain (discard=nburn) + its config -> a _chains/ subfolder of the
+    # catalog's output/ leaf dir (symlinked to scratch), kept apart from the .h5 / run-config /
+    # iter PDFs so the big chains don't mix with the pipeline outputs and stay off the HOME
+    # quota. The small artifacts (json, plots, corner) remain in --out. Chain columns follow
+    # param_names; the sidecar config makes the chain self-describing for later corner polishing.
+    chain_dir = os.path.join(os.path.dirname(os.path.abspath(h5)), "_chains")
+    os.makedirs(chain_dir, exist_ok=True)
+    chain_path = os.path.join(chain_dir, f"{code}_confusion_fit_{args.model}_chain.npy")
+    np.save(chain_path, chain)
+    chain_cfg = dict(code=code, model=args.model, param_names=list(init["names"]),
+                     channels=list(channels), fit_band_hz=[fmin, fmax],
+                     conf_floor=args.conf_floor, n_per_decade=args.n_per_decade, kappa=args.kappa,
+                     window=args.window, log_sigma=args.log_sigma, nwalkers=args.nwalkers,
+                     nsteps=args.nsteps, nburn=args.nburn, n_flat_samples=int(chain.shape[0]),
+                     bounds=[list(b) for b in bounds], a_init=float(A_init))
+    with open(os.path.splitext(chain_path)[0] + "_config.json", "w") as fh:
+        json.dump(chain_cfg, fh, indent=2)
+    print(f"[{code}] full chain {chain.shape} + config -> {chain_path}")
     for name in init["names"]:
         c = coeffs[name]
         print(f"    {name:6s} = {c['median']:.4g} (+{c['plus']:.2g}/-{c['minus']:.2g})")
