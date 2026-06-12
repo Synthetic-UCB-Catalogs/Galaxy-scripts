@@ -10,10 +10,11 @@ computation per (code, leaf). Two modes:
                    in the thousands -- and needs no pipeline output.
   --mode resolved  the same cut on the RESOLVED set ({code}_output_cat_snr7.h5), with distance
                    recovered per source from its own (Amplitude, Frequency) and the UID-invariant
-                   Mc(UID) by inverting A = 2 Mc^(5/3)(pi f)^(2/3)/d.
-                   NOTE: this currently comes out anomalously low (≈0 for most codes) -- almost
-                   certainly the output_cat 'Amplitude' not matching gen_catalog's injected
-                   convention, so the inversion is off. Validate that before trusting it.
+                   Mc(UID) by inverting A = 2 Mc^(5/3)(pi f)^(2/3)/d. (The output_cat 'Name' is a
+                   STRING copy of the integer UID -- gen_catalog dtype '<U24' -- so Mc(UID) is keyed
+                   on an int64-cast Name; without the cast a string-vs-int reindex silently returns
+                   all-NaN and the counts collapse to ~0. The amplitude is unitless/geometric, so
+                   the distance inversion itself is exact.)
 
 Outputs (figures/):
   total:    N_1kpc_grid_{MT,ic}_variations.pdf            + N_1kpc_total_table.csv
@@ -92,12 +93,13 @@ def count_total(alldwds_csv):
 
 # -------------------------------------------------------------- resolved mode
 def uid_chirpmass(alldwds_csv):
-    """UID -> chirp mass [s] (masses are UID-invariant; dedup by UID)."""
+    """UID -> chirp mass [s] (masses are UID-invariant; dedup by UID). Indexed by int64 UID so it
+    matches the output_cat 'Name', which gen_catalog stores as a string ('<U24') copy of the UID."""
     df = pd.read_csv(alldwds_csv, usecols=['UID', 'mass1', 'mass2']).drop_duplicates('UID')
     m1 = df.mass1.values * Constants.Msun
     m2 = df.mass2.values * Constants.Msun
     Mc = (m1 + m2) * (m1 * m2 / (m1 + m2) ** 2) ** (3. / 5)
-    return pd.Series(Mc, index=df.UID.values)
+    return pd.Series(Mc, index=df.UID.astype('int64').values)
 
 
 def distance_kpc(uid, f, A, mc_of_uid):
@@ -114,7 +116,9 @@ def count_resolved(alldwds_csv, out_h5):
         return np.nan
     import gwg
     cat = gwg.utils.load_h5(out_h5, key='cat')
-    uid = np.asarray(cat['Name'])
+    # gen_catalog stores 'Name' as a string ('<U24') copy of the integer UID; cast back to int64
+    # so the Mc(UID) lookup matches (a string-vs-int reindex silently returns all-NaN -> count 0).
+    uid = np.asarray(cat['Name']).astype('int64')
     f = np.asarray(cat['Frequency'])
     A = np.asarray(cat['Amplitude'])
     d = distance_kpc(uid, f, A, uid_chirpmass(alldwds_csv))
