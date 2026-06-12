@@ -8,22 +8,21 @@ computation per (code, leaf). Two modes:
                    AND in the LISA band (f > 1e-4 Hz), straight from {code}_Galaxy_AllDWDs.csv
                    (RRelkpc + f=2/PSetTodayHours). This is the collaborators' N_1kpc -- counts
                    in the thousands -- and needs no pipeline output.
-  --mode resolved  the same cut on the RESOLVED set ({code}_output_cat_snr7.h5), with distance
-                   recovered per source from its own (Amplitude, Frequency) and the UID-invariant
-                   Mc(UID) by inverting A = 2 Mc^(5/3)(pi f)^(2/3)/d. (The output_cat 'Name' is a
-                   STRING copy of the integer UID -- gen_catalog dtype '<U24' -- so Mc(UID) is keyed
-                   on an int64-cast Name; without the cast a string-vs-int reindex silently returns
-                   all-NaN and the counts collapse to ~0. The amplitude is unitless/geometric, so
-                   the distance inversion itself is exact.)
+  --mode resolved  the same cut on the RESOLVED set ({code}_output_cat_snr7.h5). Distance comes
+                   from each source's own (Frequency, FrequencyDerivative, Amplitude): fdot fixes
+                   the chirp mass for a GW-driven binary, so d = (5/48) fdot/(pi^2 f^3 A) (verified
+                   exact vs RRelkpc). No catalog/UID round-trip -- the output_cat 'Name' is a
+                   composite recovered-source id, NOT the injected UID, so a UID join is impossible.
 
 Outputs (figures/):
   total:    N_1kpc_grid_{MT,ic}_variations.pdf            + N_1kpc_total_table.csv
   resolved: N_1kpc_grid_{MT,ic}_variations_resolved.pdf   + N_1kpc_resolved_table.csv
 
-UID is NOT unique per galaxy instance (the same pop-synth binary is sampled at many
-time/position combos, so UID/ID repeat and f/distance vary within a UID); masses ARE
-UID-invariant, which is what makes the resolved-mode Mc(UID) lookup clean. The same join
-later yields formation channels.
+Aside on identifiers: UID is NOT unique per galaxy instance (the same pop-synth binary is
+sampled at many time/position combos), and the output_cat 'Name' is a composite recovered-
+source id rather than the UID -- so resolved mode avoids catalog joins entirely (distance from
+f/fdot/A above). A future formation-channel study would instead match recovered sources by
+sky position / frequency, since 'Name' does not carry the UID.
 
 Run from Foregrounds/ (resolved mode needs the gbgpu env for gwg):
     python numbers_resolved.py --datapath monte_carlo_comparisons/            # total
@@ -92,37 +91,24 @@ def count_total(alldwds_csv):
 
 
 # -------------------------------------------------------------- resolved mode
-def uid_chirpmass(alldwds_csv):
-    """UID -> chirp mass [s] (masses are UID-invariant; dedup by UID). Indexed by int64 UID so it
-    matches the output_cat 'Name', which gen_catalog stores as a string ('<U24') copy of the UID."""
-    df = pd.read_csv(alldwds_csv, usecols=['UID', 'mass1', 'mass2']).drop_duplicates('UID')
-    m1 = df.mass1.values * Constants.Msun
-    m2 = df.mass2.values * Constants.Msun
-    Mc = (m1 + m2) * (m1 * m2 / (m1 + m2) ** 2) ** (3. / 5)
-    return pd.Series(Mc, index=df.UID.astype('int64').values)
+def count_resolved(out_h5):
+    """# resolved DWDs with f > FCUT and 0 < d < DMAX_KPC, or NaN if the run is absent.
 
-
-def distance_kpc(uid, f, A, mc_of_uid):
-    """Per-source heliocentric distance [kpc] from its own (f, A) + Mc(UID), inverting
-    A = 2 Mc^(5/3)(pi f)^(2/3)/d (gen_catalog convention)."""
-    Mc = mc_of_uid.reindex(uid).values
-    d_s = 2.0 * Mc ** (5. / 3) * (np.pi * f) ** (2. / 3) / A
-    return d_s / (Constants.pc * 1e3)
-
-
-def count_resolved(alldwds_csv, out_h5):
-    """# resolved DWDs with f > FCUT and d < DMAX_KPC, or NaN if the run is absent."""
+    Distance from each source's own (Frequency, FrequencyDerivative, Amplitude): for a GW-driven
+    binary fdot fixes the chirp mass (fdot = (96/5) pi^(8/3) Mc^(5/3) f^(11/3)), so substituting
+    into A = 2 Mc^(5/3)(pi f)^(2/3)/d gives d = (5/48) fdot/(pi^2 f^3 A) (unitless/geometric A ->
+    d in s -> kpc). No catalog/UID round-trip -- the output_cat 'Name' is a composite recovered-
+    source id, NOT the injected UID, so a UID join is impossible. fdot <= 0 (recovery noise) gives
+    d <= 0 and is dropped by the d > 0 guard."""
     if not os.path.exists(out_h5):
         return np.nan
     import gwg
     cat = gwg.utils.load_h5(out_h5, key='cat')
-    # gen_catalog stores 'Name' as a string ('<U24') copy of the integer UID; cast back to int64
-    # so the Mc(UID) lookup matches (a string-vs-int reindex silently returns all-NaN -> count 0).
-    uid = np.asarray(cat['Name']).astype('int64')
     f = np.asarray(cat['Frequency'])
+    fdot = np.asarray(cat['FrequencyDerivative'])
     A = np.asarray(cat['Amplitude'])
-    d = distance_kpc(uid, f, A, uid_chirpmass(alldwds_csv))
-    return int(np.sum((f > FCUT) & (d < DMAX_KPC)))
+    d = (5. / 48.) * fdot / (np.pi ** 2 * f ** 3 * A) / (Constants.pc * 1e3)   # kpc
+    return int(np.sum((f > FCUT) & (d > 0) & (d < DMAX_KPC)))
 
 
 # ------------------------------------------------------------------ plotting
@@ -221,8 +207,8 @@ def main():
     rows = []
     for datapath_rel, family, variation in leaves:
         for code in CODES:
-            alldwds = os.path.join(config["basepath"], datapath_rel, f"{code}_Galaxy_AllDWDs.csv")
             if args.mode == "total":
+                alldwds = os.path.join(config["basepath"], datapath_rel, f"{code}_Galaxy_AllDWDs.csv")
                 if not os.path.exists(alldwds):
                     continue
                 n = count_total(alldwds)
@@ -230,7 +216,7 @@ def main():
                 out_h5 = os.path.join(config["outputpath"], datapath_rel, f"{code}_output_cat_snr{SNR}.h5")
                 if not os.path.exists(out_h5):
                     continue
-                n = count_resolved(alldwds, out_h5)
+                n = count_resolved(out_h5)
             rows.append({"code": code, "family": family, "variation": variation, "N": n})
             print(f"  {family}/{variation:24s} {code:8s}  N(<1kpc, f>1e-4) = {n}")
 
