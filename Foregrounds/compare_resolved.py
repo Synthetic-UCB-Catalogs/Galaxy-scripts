@@ -2,10 +2,10 @@
 Recovery-fraction analysis: resolved (gwg.icloop) / reference,
 following Wouter's lisa_dwd_counter.py (`lisa_dwd_count_plotter`) convention.
 
-Per-code grouped bars colored by ICV (initial-condition variation). The SNR-
-threshold uncertainty (sweep of snr_cutoff) is shown ON TOP as error bars: each
-bar is the nominal SNR>7 value; the error bar spans the cut5..cut9 range. ICVs
-without output get reserved (empty) slots, matching the upstream plotter.
+Per-code grouped bars colored by ICV (initial-condition variation), at the
+SNR>7 "money" cutoff only, with no error bars. The snr_cutoff 5/7/9 spread is a
+separate lower-priority product, produced on its own rather than overlaid here.
+ICVs without output get reserved (empty) slots, matching the upstream plotter.
 
 Figures (recovery plots share the resolved-counts legend, so only the counts
 figure carries it — the recovery figures sit beside it in the draft):
@@ -13,6 +13,9 @@ figure carries it — the recovery figures sit beside it in the draft):
     figures/compare_recovery.png                    recovery % vs no-conf gbgpu reference
     figures/compare_recovery_legwork.png            recovery % vs no-conf LEGWORK reference
     figures/compare_recovery_legwork_robson19.png   recovery % vs LEGWORK robson19 reference
+    figures/compare_*_<family>.png                  same four, one set per MTV subfamily
+                                                    (common_envelope / stability_of_mass_transfer
+                                                    / stable_accretion_efficiency), bars by subvariation
 
 Per (code, ICV, cutoff): resolved from {code}_output_cat_snr{X}.h5; the references
 (gbgpu per-source no-conf, LEGWORK no-conf, LEGWORK robson19) from reference_snr.py,
@@ -41,6 +44,18 @@ VARIATIONS = ['fiducial', 'm2_min_05', 'porb_log_uniform', 'qmin_01',
               'thermal_ecc', 'uniform_ecc']
 MONEY_CUTOFF = 7.0
 
+# MTV subfamilies -> their subvariations, mirroring lisa_dwd_counter.py's var_name routing.
+# Following the reference plotter's convention, each family is its OWN grouped figure
+# (gist_rainbow over the series below, with the MTV fiducial prepended as the baseline),
+# rather than one combined MTV figure. The ICV set stays a single 6-variation figure.
+MTV_FAMILIES = {
+    "common_envelope": ['alpha_lambda_02', 'alpha_lambda_05', 'alpha_lambda_1',
+                        'alpha_lambda_2', 'alpha_gamma_2'],
+    "stability_of_mass_transfer": ['qcrit_claeys_14', 'qcrit_hurley_02',
+                                   'qcrit_hurley_webbink', 'qcrit_zetas'],
+    "stable_accretion_efficiency": ['accretion_0', 'accretion_05', 'accretion_1'],
+}
+
 # Recovery references: (method key in the reference cache, y-axis label, output file, ylim).
 # gbgpu/LEGWORK no-conf are the resolvability ceilings (<=100%); the LEGWORK robson19
 # reference is suppressed by the galactic foreground, so its recovery can exceed 100%
@@ -50,12 +65,6 @@ RECOVERY_REFS = [
     ("legwork",          "Resolved / no-conf (LEGWORK) [%]",  "compare_recovery_legwork.png",          (0, 100)),
     ("legwork_robson19", "Resolved / robson19 (LEGWORK) [%]", "compare_recovery_legwork_robson19.png", None),
 ]
-
-
-def datapath_for_variation(datapath, variation):
-    parts = datapath.rstrip('/').split('/')
-    parts[-1] = variation
-    return '/'.join(parts) + '/'
 
 
 def discover_runs(outpath, code):
@@ -168,19 +177,31 @@ def load_reference(code, config, outpath, inpath, datapath, thresholds, use_gpu)
     return merged
 
 
-def _nominal_and_err(sub, valcol):
-    """(nominal at MONEY_CUTOFF, low_err, high_err) over the cutoff sweep.
+def _value_at_money(sub, valcol):
+    """`valcol` at SNR>MONEY_CUTOFF for this subset (the SNR=7 money value, no spread).
 
-    Bar height = value at SNR>MONEY_CUTOFF; error bar spans min..max over cutoffs.
+    Falls back to the median-cutoff value if a 7.0 run is somehow absent.
     """
     if sub.empty:
-        return np.nan, 0.0, 0.0
+        return np.nan
     by_cut = sub.dropna(subset=[valcol]).set_index("cutoff")[valcol]
     if by_cut.empty:
+        return np.nan
+    return by_cut.get(MONEY_CUTOFF, by_cut.sort_index().iloc[len(by_cut) // 2])
+
+
+def _nominal_and_err(sub, valcol):
+    """(value at MONEY_CUTOFF, low_err, high_err) over the cutoff sweep.
+
+    Parked Tier-2 helper for the separate snr-spread product. The money plots and the
+    printout use _value_at_money (SNR=7 only, no error bars); this is kept for the
+    deferred 5/7/9 spread figures.
+    """
+    nominal = _value_at_money(sub, valcol)
+    if np.isnan(nominal):
         return np.nan, 0.0, 0.0
-    nominal = by_cut.get(MONEY_CUTOFF, by_cut.sort_index().iloc[len(by_cut) // 2])
-    lo, hi = by_cut.min(), by_cut.max()
-    return nominal, max(nominal - lo, 0.0), max(hi - nominal, 0.0)
+    by_cut = sub.dropna(subset=[valcol]).set_index("cutoff")[valcol]
+    return nominal, max(nominal - by_cut.min(), 0.0), max(by_cut.max() - nominal, 0.0)
 
 
 # Font sizes tuned for this dense layout (8 codes × 6 ICVs at figsize 10×5). Applied via
@@ -196,32 +217,45 @@ _FONT_RC = {
 }
 
 
-def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None, legend=True):
-    """Per-code grouped bars colored by ICV (lisa_dwd_count_plotter convention), with
-    SNR-threshold-range error bars (bar at SNR>MONEY_CUTOFF, caps span cut min..max).
+def _family_outfile(outfile, family):
+    """Insert a family tag before the extension:
+    compare_recovery.png -> compare_recovery_<family>.png."""
+    stem, ext = os.path.splitext(outfile)
+    return f"{stem}_{family}{ext}"
 
-    legend=False omits the ICV legend (the recovery figures reuse the counts legend
-    when placed side by side in the draft)."""
-    width = 0.7 / len(VARIATIONS)
-    colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(VARIATIONS)))
-    xtick_pos = np.linspace((len(VARIATIONS) / 2 - 0.5) * width,
-                            len(CODES) - 1 + (len(VARIATIONS) / 2 - 0.5) * width, len(CODES))
+
+def _grouped_bar_plot(tab, variations, valcol, ylabel, outfile, ylim=None, legend=True):
+    """Per-code grouped bars colored by variation (lisa_dwd_count_plotter convention) at the
+    SNR>MONEY_CUTOFF money value, with no error bars (the snr-sweep spread is a separate
+    Tier-2 product).
+
+    `variations` is the colour/legend series: the 6 ICVs for the ICV figure, or one MTV
+    family's subvariations (fiducial baseline + family) for a per-family figure. `tab` must
+    already be scoped to the matching family so a shared variation name (e.g. 'fiducial')
+    is unambiguous. Missing (code, variation) combos render as reserved gist_rainbow slots.
+
+    legend=False omits the legend (the recovery figures reuse the counts legend when placed
+    side by side in the draft)."""
+    width = 0.7 / len(variations)
+    colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(variations)))
+    xtick_pos = np.linspace((len(variations) / 2 - 0.5) * width,
+                            len(CODES) - 1 + (len(variations) / 2 - 0.5) * width, len(CODES))
     with plt.rc_context(_FONT_RC):
         fig, ax = plt.subplots(figsize=(10, 5))
         for i, code in enumerate(CODES):
-            for j, var in enumerate(VARIATIONS):
+            for j, var in enumerate(variations):
                 sub = tab[(tab.code == code) & (tab.variation == var)]
-                val, elo, ehi = _nominal_and_err(sub, valcol)
-                yerr = [[elo], [ehi]] if not np.isnan(val) else None
-                ax.bar(i + j * width, val, width, color=colors[j], edgecolor="black",
-                       yerr=yerr, capsize=3, ecolor="black", error_kw={"elinewidth": 0.8})
+                val = _value_at_money(sub, valcol)
+                ax.bar(i + j * width, val, width, color=colors[j], edgecolor="black")
         ax.set_xticks(xtick_pos)
         ax.set_xticklabels(CODES)
         ax.set_ylabel(ylabel)
         if ylim:
             ax.set_ylim(*ylim)
         if legend:
-            ax.legend(VARIATIONS)   # lisa_dwd_count_plotter convention: legend(var_list) — full ICV colour key
+            # Legend only on the counts figure (the fraction plots sit beside it and reuse it).
+            # Top-left clears the bars: it sits above BPASS, whose counts are small.
+            ax.legend(variations, loc="upper left")
         ax.grid(True, linestyle=":", linewidth=1.0, axis="y")
         ax.yaxis.set_ticks_position("both")
         ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
@@ -233,32 +267,33 @@ def _icv_bar_plot(tab, valcol, ylabel, outfile, ylim=None, legend=True):
 
 
 def _fmt(sub, valcol, pct=False):
-    """'nominal (+hi/-lo)' string: value at SNR>MONEY_CUTOFF with the cutoff-sweep range."""
-    nominal, elo, ehi = _nominal_and_err(sub, valcol)
-    if np.isnan(nominal):
+    """SNR>MONEY_CUTOFF money value as a string (SNR=7 only, no cutoff-sweep spread)."""
+    val = _value_at_money(sub, valcol)
+    if np.isnan(val):
         return "n/a"
     d = 1 if pct else 0
     suffix = "%" if pct else ""
-    return f"{nominal:.{d}f} (+{ehi:.{d}f}/-{elo:.{d}f}){suffix}"
+    return f"{val:.{d}f}{suffix}"
 
 
-def _icv_noise_curves(config, channel="A"):
-    """Per-code overlay of the final smoothed noise curve S (channel `channel`) across ICVs,
-    coloured by ICV with the same gist_rainbow + legend(VARIATIONS) scheme as the recovery
-    bar plots (reserved slots for missing ICVs) + the TDI1 instrument reference. No analytic
-    fits. Two figures per code:
-      figures/noise_curves_{code}.png       central (SNR>MONEY_CUTOFF) curve per ICV
-      figures/noise_curves_band_{code}.png  + SNR-threshold band shaded between snr5 and snr9
-    (lower cutoff subtracts more sources -> lower residual, so the band brackets the curve;
-    same cut5..cut9 span the bar plot shows as error bars). The band needs both the snr5 and
-    snr9 runs for that ICV; ICVs missing either just get the central curve.
+def _noise_curves(config, variations, variation_paths, tag="", channel="A"):
+    """Per-code overlay of the final smoothed SNR>MONEY_CUTOFF noise curve S (channel
+    `channel`) across `variations`, coloured by variation with the same gist_rainbow +
+    legend scheme as the recovery bar plots (reserved slots for missing variations) + the
+    TDI1 instrument reference. SNR=7 only, no error band (the snr-sweep band is a separate
+    Tier-2 product). `variation_paths` maps each variation name to its catalog-tree subpath,
+    taken straight from the discovered table, so the flat ICV and nested MTV leaves (and the
+    MTV-fiducial baseline, which lives at a different depth) all resolve uniformly.
+
+    One figure per code:
+      figures/noise_curves_{code}.png         ICV overlay        (tag="")
+      figures/noise_curves_{tag}_{code}.png   per MTV subfamily  (tag=family)
     """
-    base = config["datapath"]
-    colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(VARIATIONS)))
+    colors = plt.get_cmap("gist_rainbow")(np.linspace(0, 1, len(variations)))
     tdi = 1 if not config.get("tdi2", False) else 2
     fref = np.logspace(-4, np.log10(2e-2), 2000)
     instr = np.asarray(reference_snr._instrument_psd_fn(tdi)(fref)[0])
-    cuts = (5.0, MONEY_CUTOFF, 9.0)
+    pre = f"{tag}_" if tag else ""
     os.makedirs("figures", exist_ok=True)
 
     def _load(h5):
@@ -270,55 +305,49 @@ def _icv_noise_curves(config, channel="A"):
         return fa[::step], Sa[::step]
 
     for code in CODES:
-        per_icv = {}                                  # j -> (fa, {cutoff: Sa}); fa shared across cutoffs
-        for j, var in enumerate(VARIATIONS):
-            outpath = os.path.join(config["outputpath"], datapath_for_variation(base, var))
-            fa, byc = None, {}
-            for cut in cuts:
-                h5 = os.path.join(outpath, f"{code}_output_cat_snr{cut:g}.h5")
-                if not os.path.exists(h5):
-                    continue
-                try:
-                    fa, byc[cut] = _load(h5)
-                except Exception:
-                    continue
-            if byc:
-                per_icv[j] = (fa, byc)
-        if not per_icv:
+        per_var = {}                                  # j -> (fa, Sa) at SNR>MONEY_CUTOFF
+        for j, var in enumerate(variations):
+            dp = variation_paths.get(var)
+            if dp is None:
+                continue
+            h5 = os.path.join(config["outputpath"], dp,
+                              f"{code}_output_cat_snr{MONEY_CUTOFF:g}.h5")
+            if not os.path.exists(h5):
+                continue
+            try:
+                per_var[j] = _load(h5)
+            except Exception:
+                continue
+        if not per_var:
             continue
-        for kind in ("lines", "band"):
-            with plt.rc_context(_FONT_RC):
-                fig, ax = plt.subplots(figsize=(10, 5))
-                ymax = float(instr.min())
-                for j, var in enumerate(VARIATIONS):
-                    if j not in per_icv:
-                        ax.loglog([], [], color=colors[j], label=var)   # reserved slot (mirror bar plot)
-                        continue
-                    fa, byc = per_icv[j]
-                    central = byc.get(MONEY_CUTOFF, byc[sorted(byc)[len(byc) // 2]])
-                    ax.loglog(fa, central, color=colors[j], lw=1.5, label=var)
-                    iv = (fa >= 1e-4) & (fa <= 2e-2)
-                    if iv.any():
-                        ymax = max(ymax, float(np.nanmax(central[iv])))
-                    if kind == "band" and 5.0 in byc and 9.0 in byc:
-                        ax.fill_between(fa, byc[5.0], byc[9.0], color=colors[j], alpha=0.25, lw=0)
-                ax.loglog(fref, instr, "k--", lw=1.2, alpha=0.6, label="instrument")
-                ax.set_xlim(1e-4, 2e-2)
-                ax.set_ylim(max(float(instr.min()) * 0.5, 1e-44), ymax * 2)
-                ax.set_xlabel(r"Frequency [Hz]")
-                ax.set_ylabel(r"PSD [1/Hz]")
-                ax.legend()                            # labelled lines only -> ICV colour key + instrument
-                ax.text(0.98, 0.98, code, transform=ax.transAxes, ha="right", va="top", fontsize=14)
-                ax.grid(True, linestyle=":", linewidth=1.0)
-                ax.xaxis.set_ticks_position("both")
-                ax.yaxis.set_ticks_position("both")
-                ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
-                fig.tight_layout()
-                suffix = "" if kind == "lines" else "_band"
-                out = os.path.join("figures", f"noise_curves{suffix}_{code}.png")
-                fig.savefig(out, dpi=150)
-                print(f"saved {out}")
-                plt.close(fig)
+        with plt.rc_context(_FONT_RC):
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ymax = float(instr.min())
+            for j, var in enumerate(variations):
+                if j not in per_var:
+                    ax.loglog([], [], color=colors[j], label=var)   # reserved slot (mirror bar plot)
+                    continue
+                fa, Sa = per_var[j]
+                ax.loglog(fa, Sa, color=colors[j], lw=1.5, label=var)
+                iv = (fa >= 1e-4) & (fa <= 2e-2)
+                if iv.any():
+                    ymax = max(ymax, float(np.nanmax(Sa[iv])))
+            ax.loglog(fref, instr, "k--", lw=1.2, alpha=0.6, label="instrument")
+            ax.set_xlim(1e-4, 2e-2)
+            ax.set_ylim(max(float(instr.min()) * 0.5, 1e-44), ymax * 2)
+            ax.set_xlabel(r"Frequency [Hz]")
+            ax.set_ylabel(r"PSD [1/Hz]")
+            ax.legend()                            # variation colour key + instrument
+            ax.text(0.98, 0.98, code, transform=ax.transAxes, ha="right", va="top", fontsize=14)
+            ax.grid(True, linestyle=":", linewidth=1.0)
+            ax.xaxis.set_ticks_position("both")
+            ax.yaxis.set_ticks_position("both")
+            ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
+            fig.tight_layout()
+            out = os.path.join("figures", f"noise_curves_{pre}{code}.png")
+            fig.savefig(out, dpi=150)
+            print(f"saved {out}")
+            plt.close(fig)
 
 
 def main():
@@ -368,7 +397,7 @@ def main():
     tab = pd.DataFrame(records)
     cutoffs = sorted(tab.cutoff.unique())
     avail_refs = [(k, lbl) for k, lbl, _, _ in RECOVERY_REFS if tab[f"recovery_{k}"].notna().any()]
-    print(f"snr_cutoff runs: {cutoffs}  (value = SNR>{MONEY_CUTOFF:g}; +hi/-lo spans the sweep)")
+    print(f"snr_cutoff runs: {cutoffs}  (money value = SNR>{MONEY_CUTOFF:g}; snr-spread plots deferred)")
 
     # Numbers for every leaf (ICV + MTV), grouped by family then variation.
     for family in sorted(tab.family.unique()):
@@ -388,23 +417,39 @@ def main():
     tab.sort_values(["family", "variation", "code", "cutoff"]).to_csv(csv_path, index=False)
     print(f"\nsaved {csv_path}  ({len(tab)} rows, families: {sorted(tab.family.unique())})")
 
-    # ICV grouped bar plots (lisa_dwd_count_plotter convention): _icv_bar_plot / _icv_noise_curves
-    # iterate the VARIATIONS ICV list, so MTV rows are naturally excluded. MTV plotting is deferred
-    # (numbers + CSV only for now); the bars below render only when ICV output is present.
+    # ICV grouped bars + noise curves (lisa_dwd_count_plotter convention) over the 6-ICV
+    # VARIATIONS list. MTV gets its own per-family figures below; both share _grouped_bar_plot
+    # and _noise_curves, differing only in the variation series and the figure tag.
     icv_tab = tab[tab.family == "initial_condition_variations"]
     if not icv_tab.empty:
-        _icv_bar_plot(icv_tab, "resolved", "Resolved DWDs", "compare_resolved.png", legend=True)
+        _grouped_bar_plot(icv_tab, VARIATIONS, "resolved", "Resolved DWDs", "compare_resolved.png", legend=True)
         for key, label, outfile, ylim in RECOVERY_REFS:
             if icv_tab[f"recovery_{key}"].notna().any():
-                _icv_bar_plot(icv_tab, f"recovery_{key}", label, outfile, ylim=ylim, legend=False)
-        # _icv_noise_curves derives each ICV path from config["datapath"] (last component
-        # swapped per ICV); anchor it on a discovered ICV leaf so it works regardless of
-        # what config.yaml's datapath currently points at.
-        config["datapath"] = icv_tab.iloc[0]["datapath"]
-        _icv_noise_curves(config)
-    mtv_present = sorted(tab[tab.family == "mass_transfer_variations"].variation.unique())
-    if mtv_present:
-        print(f"MTV leaves with output (numbers + CSV only, grouped plots deferred): {mtv_present}")
+                _grouped_bar_plot(icv_tab, VARIATIONS, f"recovery_{key}", label, outfile, ylim=ylim, legend=False)
+        # Noise curves resolve each variation's path from the discovered table (no config
+        # datapath swap needed); ICV is one overlay per code across the 6 ICVs.
+        _noise_curves(config, VARIATIONS, dict(zip(icv_tab.variation, icv_tab.datapath)), tag="")
+
+    # MTV per-family grouped bars: one figure per subfamily, gist_rainbow over
+    # [fiducial baseline + that family's present subvariations] (reference plotter
+    # convention applied per family). Tab scoped to MTV so 'fiducial' is unambiguous.
+    mtv_tab = tab[tab.family == "mass_transfer_variations"]
+    if not mtv_tab.empty:
+        plotted = []
+        for family, subvars in MTV_FAMILIES.items():
+            series = (['fiducial'] if (mtv_tab.variation == 'fiducial').any() else []) + \
+                     [v for v in subvars if (mtv_tab.variation == v).any()]
+            if len(series) < 2:
+                continue
+            _grouped_bar_plot(mtv_tab, series, "resolved", "Resolved DWDs",
+                              _family_outfile("compare_resolved.png", family), legend=True)
+            for key, label, outfile, ylim in RECOVERY_REFS:
+                if mtv_tab[mtv_tab.variation.isin(series)][f"recovery_{key}"].notna().any():
+                    _grouped_bar_plot(mtv_tab, series, f"recovery_{key}", label,
+                                      _family_outfile(outfile, family), ylim=ylim, legend=False)
+            _noise_curves(config, series, dict(zip(mtv_tab.variation, mtv_tab.datapath)), tag=family)
+            plotted.append(family)
+        print(f"MTV per-family bar + noise-curve plots written for: {plotted}")
 
 
 if __name__ == "__main__":
