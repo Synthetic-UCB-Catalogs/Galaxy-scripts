@@ -1,24 +1,32 @@
 """
-numbers_resolved.py -- refresh the N_1kpc count grids with OUR resolved sources.
+numbers_resolved.py -- refresh the N_1kpc count grids from OUR catalogs / pipeline output.
 
 Adapted from analysis-scripts/numbers.ipynb: the hardcoded count dicts are replaced by a
-computation over our pipeline output. Per (code, leaf) it counts the RESOLVED DWDs (icloop
-SNR>7, from {code}_output_cat_snr7.h5) that are CLOSE (< 1 kpc, for optical follow-up) AND
-in the LISA band (f > 1e-4 Hz), then renders the per-family grids
-    figures/N_1kpc_grid_MT_variations.pdf      (mass-transfer subfamilies)
-    figures/N_1kpc_grid_ic_variations.pdf      (initial-condition variations)
-plus figures/N_1kpc_resolved_table.csv (the durable artifact).
+computation per (code, leaf). Two modes:
 
-Distance recovery (no pipeline rerun, no added index): UID is NOT unique per galaxy
-instance -- the same pop-synth binary is sampled at many (time, position) combos, so UID/ID
-repeat and frequency/distance vary within a UID. But the binary's MASSES are UID-invariant,
-so Mc(UID) is a clean one-per-UID lookup; the position-dependent distance then comes from
-each resolved source's OWN (Amplitude, Frequency) by inverting gen_catalog's amplitude
-    A = 2 Mc^(5/3) (pi f)^(2/3) / d   ->   d = 2 Mc(UID)^(5/3) (pi f)^(2/3) / A
-(verified exact to ~1e-14 against RRelkpc). The same UID join later yields formation channels.
+  --mode total     (default) catalog DWDs that are CLOSE (< 1 kpc, for optical follow-up)
+                   AND in the LISA band (f > 1e-4 Hz), straight from {code}_Galaxy_AllDWDs.csv
+                   (RRelkpc + f=2/PSetTodayHours). This is the collaborators' N_1kpc -- counts
+                   in the thousands -- and needs no pipeline output.
+  --mode resolved  the same cut on the RESOLVED set ({code}_output_cat_snr7.h5), with distance
+                   recovered per source from its own (Amplitude, Frequency) and the UID-invariant
+                   Mc(UID) by inverting A = 2 Mc^(5/3)(pi f)^(2/3)/d.
+                   NOTE: this currently comes out anomalously low (≈0 for most codes) -- almost
+                   certainly the output_cat 'Amplitude' not matching gen_catalog's injected
+                   convention, so the inversion is off. Validate that before trusting it.
 
-Run from Foregrounds/ (needs the gbgpu env for gwg + the catalogs/output on disk):
-    python numbers_resolved.py --datapath monte_carlo_comparisons/
+Outputs (figures/):
+  total:    N_1kpc_grid_{MT,ic}_variations.pdf            + N_1kpc_total_table.csv
+  resolved: N_1kpc_grid_{MT,ic}_variations_resolved.pdf   + N_1kpc_resolved_table.csv
+
+UID is NOT unique per galaxy instance (the same pop-synth binary is sampled at many
+time/position combos, so UID/ID repeat and f/distance vary within a UID); masses ARE
+UID-invariant, which is what makes the resolved-mode Mc(UID) lookup clean. The same join
+later yields formation channels.
+
+Run from Foregrounds/ (resolved mode needs the gbgpu env for gwg):
+    python numbers_resolved.py --datapath monte_carlo_comparisons/            # total
+    python numbers_resolved.py --datapath monte_carlo_comparisons/ --mode resolved
 """
 import os
 import glob
@@ -28,17 +36,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
-import gwg
 
 from helpers import Constants, load_and_prepare_config
 
 CODES = ['BPASS', 'BSE', 'ComBinE', 'COMPAS', 'COSMIC', 'METISSE', 'SeBa', 'SEVN']
-SNR = 7            # the snr7 resolved run
+SNR = 7            # the snr7 resolved run (resolved mode)
 FCUT = 1e-4        # Hz, LISA-band lower edge ("in band")
 DMAX_KPC = 1.0     # kpc, "close" cut for optical follow-up
 
-# Variation grouping + labels, carried over verbatim from numbers.ipynb so the two grids
-# match the collaborators' tables.
+# Variation grouping + labels, carried over verbatim from numbers.ipynb so the grids match.
 MT_ORDER = ['fiducial', 'qcrit_claeys_14', 'qcrit_hurley_02', 'qcrit_hurley_webbink', 'qcrit_zetas',
             'alpha_gamma_2', 'alpha_lambda_02', 'alpha_lambda_05', 'alpha_lambda_1', 'alpha_lambda_2',
             'accretion_0', 'accretion_05', 'accretion_1']
@@ -56,13 +62,14 @@ LABEL_MAP = {
 }
 
 
-def discover_leaves(outputpath, mc_prefix):
-    """Every leaf with a {code}_output_cat_snr{SNR}.h5 under outputpath/mc_prefix, as
-    [(datapath_rel, family, variation)] (ICV flat + MTV nested), mirroring compare_resolved."""
-    root = os.path.join(outputpath, mc_prefix)
+def discover_leaves(root_dir, mc_prefix, pattern):
+    """Every leaf holding `pattern` under root_dir/mc_prefix, as [(datapath_rel, family,
+    variation)] (ICV flat + MTV nested). datapath_rel is relative to root_dir, so it lines up
+    whether root_dir is basepath (catalogs) or outputpath (resolved)."""
+    root = os.path.join(root_dir, mc_prefix)
     leaves = {}
-    for cat in glob.glob(os.path.join(root, "**", f"*_output_cat_snr{SNR}.h5"), recursive=True):
-        rel = os.path.relpath(os.path.dirname(cat), outputpath)
+    for hit in glob.glob(os.path.join(root, "**", pattern), recursive=True):
+        rel = os.path.relpath(os.path.dirname(hit), root_dir)
         if rel in leaves:
             continue
         parts = rel.split(os.sep)
@@ -72,8 +79,20 @@ def discover_leaves(outputpath, mc_prefix):
     return sorted(leaves.values())
 
 
+# ----------------------------------------------------------------- total mode
+def count_total(alldwds_csv):
+    """# catalog DWDs with f > FCUT and RRelkpc < DMAX_KPC (the collaborators' N_1kpc), or NaN.
+    f is the GW frequency 2/PSetTodayHours, matching gen_catalog."""
+    if not os.path.exists(alldwds_csv):
+        return np.nan
+    df = pd.read_csv(alldwds_csv, usecols=['PSetTodayHours', 'RRelkpc'])
+    f = 2.0 / (df.PSetTodayHours.values * Constants.hr)
+    return int(np.sum((f > FCUT) & (df.RRelkpc.values < DMAX_KPC)))
+
+
+# -------------------------------------------------------------- resolved mode
 def uid_chirpmass(alldwds_csv):
-    """UID -> chirp mass [s] from the source catalog (masses are UID-invariant; dedup by UID)."""
+    """UID -> chirp mass [s] (masses are UID-invariant; dedup by UID)."""
     df = pd.read_csv(alldwds_csv, usecols=['UID', 'mass1', 'mass2']).drop_duplicates('UID')
     m1 = df.mass1.values * Constants.Msun
     m2 = df.mass2.values * Constants.Msun
@@ -83,16 +102,17 @@ def uid_chirpmass(alldwds_csv):
 
 def distance_kpc(uid, f, A, mc_of_uid):
     """Per-source heliocentric distance [kpc] from its own (f, A) + Mc(UID), inverting
-    A = 2 Mc^(5/3)(pi f)^(2/3)/d (gen_catalog convention; d in s -> kpc via Constants.pc*1e3)."""
-    Mc = mc_of_uid.reindex(uid).values            # NaN if a resolved UID is absent (shouldn't happen)
+    A = 2 Mc^(5/3)(pi f)^(2/3)/d (gen_catalog convention)."""
+    Mc = mc_of_uid.reindex(uid).values
     d_s = 2.0 * Mc ** (5. / 3) * (np.pi * f) ** (2. / 3) / A
     return d_s / (Constants.pc * 1e3)
 
 
-def count_close_inband(alldwds_csv, out_h5):
+def count_resolved(alldwds_csv, out_h5):
     """# resolved DWDs with f > FCUT and d < DMAX_KPC, or NaN if the run is absent."""
     if not os.path.exists(out_h5):
         return np.nan
+    import gwg
     cat = gwg.utils.load_h5(out_h5, key='cat')
     uid = np.asarray(cat['Name'])
     f = np.asarray(cat['Frequency'])
@@ -101,10 +121,10 @@ def count_close_inband(alldwds_csv, out_h5):
     return int(np.sum((f > FCUT) & (d < DMAX_KPC)))
 
 
+# ------------------------------------------------------------------ plotting
 def color_edges(values):
-    """Two integer edges (33rd/66th pct of the positive counts) so the 4-colour scheme
-    auto-scales to the resolved counts (far smaller than the catalog N_1kpc the notebook
-    coloured), shared across both grids for comparability."""
+    """Two integer edges (33/66 pct of the positive counts) so the 4-colour scheme
+    auto-scales, shared across both grids for comparability."""
     pos = np.array([v for v in values if np.isfinite(v) and v > 0], dtype=float)
     if pos.size == 0:
         return 1, 2
@@ -125,9 +145,9 @@ def _cell_color(val, e1, e2):
     return "#d4edda"
 
 
-def draw_grid(full_df, var_order, outfile, e1, e2):
-    """Grid figure (rows=code, cols=variation) of the resolved close+in-band counts, in the
-    numbers.ipynb style. Missing (code,var) -> em-dash; 0 -> '-'."""
+def draw_grid(full_df, var_order, outfile, e1, e2, title):
+    """Grid figure (rows=code, cols=variation) in the numbers.ipynb style. Missing (code,var)
+    -> em-dash; 0 -> '-'."""
     pivot = full_df.pivot(index="code", columns="variation", values="N")
     var_order = [v for v in var_order if v in pivot.columns]
     if not var_order:
@@ -163,7 +183,7 @@ def draw_grid(full_df, var_order, outfile, e1, e2):
         Patch(facecolor="#d4edda", edgecolor="#cccccc", label=f">= {e2:,}"),
     ]
     ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(0, -0.02),
-              ncol=4, frameon=False, fontsize=9, title="resolved DWDs < 1 kpc, f > 0.1 mHz")
+              ncol=4, frameon=False, fontsize=9, title=title)
     ax.set_xlim(-2, len(variations))
     ax.set_ylim(-0.5, len(codes) + 2.5)
     os.makedirs("figures", exist_ok=True)
@@ -176,44 +196,57 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--datapath", required=True,
-                    help="any catalog subpath in the tree; only its top component "
-                         "(monte_carlo_comparisons[_lightweight_500K_DWDs]) selects the tree to scan.")
+                    help="any catalog subpath; only its top component "
+                         "(monte_carlo_comparisons[_lightweight_500K_DWDs]) selects the tree.")
+    ap.add_argument("--mode", choices=("total", "resolved"), default="total",
+                    help="total = catalog DWDs < 1 kpc, f > 1e-4 (collaborators' N_1kpc, default); "
+                         "resolved = the same cut on the snr7 resolved set (see header note).")
     args = ap.parse_args()
     os.environ.setdefault("EXPERIMENT_ROOT", "./")
     config = load_and_prepare_config("config.yaml")
     mc_prefix = args.datapath.rstrip("/").split("/")[0]
-    leaves = discover_leaves(config["outputpath"], mc_prefix)
+
+    if args.mode == "total":
+        leaves = discover_leaves(config["basepath"], mc_prefix, "*_Galaxy_AllDWDs.csv")
+    else:
+        leaves = discover_leaves(config["outputpath"], mc_prefix, f"*_output_cat_snr{SNR}.h5")
     if not leaves:
-        print(f"No resolved runs found ({{code}}_output_cat_snr{SNR}.h5) under "
-              f"{os.path.join(config['outputpath'], mc_prefix)}.")
+        print(f"No leaves found for mode '{args.mode}' under tree '{mc_prefix}'.")
         return
 
     rows = []
     for datapath_rel, family, variation in leaves:
         for code in CODES:
-            out_h5 = os.path.join(config["outputpath"], datapath_rel, f"{code}_output_cat_snr{SNR}.h5")
-            if not os.path.exists(out_h5):
-                continue
             alldwds = os.path.join(config["basepath"], datapath_rel, f"{code}_Galaxy_AllDWDs.csv")
-            n = count_close_inband(alldwds, out_h5)
+            if args.mode == "total":
+                if not os.path.exists(alldwds):
+                    continue
+                n = count_total(alldwds)
+            else:
+                out_h5 = os.path.join(config["outputpath"], datapath_rel, f"{code}_output_cat_snr{SNR}.h5")
+                if not os.path.exists(out_h5):
+                    continue
+                n = count_resolved(alldwds, out_h5)
             rows.append({"code": code, "family": family, "variation": variation, "N": n})
             print(f"  {family}/{variation:24s} {code:8s}  N(<1kpc, f>1e-4) = {n}")
 
     if not rows:
-        print("No (code, leaf) resolved catalogs to count.")
+        print("No (code, leaf) catalogs to count.")
         return
     full_df = pd.DataFrame(rows)
     os.makedirs("figures", exist_ok=True)
-    full_df.sort_values(["family", "variation", "code"]).to_csv(
-        os.path.join("figures", "N_1kpc_resolved_table.csv"), index=False)
-    print(f"\nsaved figures/N_1kpc_resolved_table.csv ({len(full_df)} rows)")
+    csv_name = f"N_1kpc_{args.mode}_table.csv"
+    full_df.sort_values(["family", "variation", "code"]).to_csv(os.path.join("figures", csv_name), index=False)
+    print(f"\nsaved figures/{csv_name} ({len(full_df)} rows)")
 
     e1, e2 = color_edges(full_df.N.values)
     print(f"colour edges (33/66 pct of positive counts): {e1}, {e2}")
+    suffix = "" if args.mode == "total" else "_resolved"
+    title = ("DWDs" if args.mode == "total" else "resolved DWDs") + " < 1 kpc, f > 0.1 mHz"
     draw_grid(full_df[full_df.family == "mass_transfer_variations"], MT_ORDER,
-              "N_1kpc_grid_MT_variations.pdf", e1, e2)
+              f"N_1kpc_grid_MT_variations{suffix}.pdf", e1, e2, title)
     draw_grid(full_df[full_df.family == "initial_condition_variations"], IC_ORDER,
-              "N_1kpc_grid_ic_variations.pdf", e1, e2)
+              f"N_1kpc_grid_ic_variations{suffix}.pdf", e1, e2, title)
 
 
 if __name__ == "__main__":
