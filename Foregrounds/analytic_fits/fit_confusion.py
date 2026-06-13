@@ -374,6 +374,9 @@ def main():
                     help="emcee CPU workers; default auto-detect (SLURM allocation / available cores); 1 = serial")
     ap.add_argument("--preprocess-only", action="store_true",
                     help="build + plot the median curve vs the pipeline mean curve, then exit (no emcee)")
+    ap.add_argument("--replot", action="store_true",
+                    help="rebuild JSON + overlay + corner from the saved chain (no emcee). Needs the h5 "
+                         "(for the TDI overlay) and output/<leaf>/_chains/..._chain.npy to exist.")
     ap.add_argument("--out", default=cfg.get("out", "fits"), help="output directory for coefficients + plots")
     args = ap.parse_args()
 
@@ -444,6 +447,54 @@ def main():
     if fb.size < 10:
         raise SystemExit(f"[{code}] only {fb.size} coarse bins; loosen the band/--conf-floor "
                          f"or lower --n-per-decade.")
+
+    # --- replot: rebuild JSON + overlay + corner from the saved chain, no emcee. The chain
+    # (output/<leaf>/_chains/) and the residual TDI (key 'tdi' in the h5) both survive a figures/
+    # wipe, so this fully regenerates the per-leaf outputs at the cost of only the median preprocess
+    # above (no sampling). Coeffs come from the chain; the overlay's curve is the chain median. ---
+    if args.replot:
+        init = INIT[args.model]
+        chain_path = os.path.join(os.path.dirname(os.path.abspath(h5)), "_chains",
+                                  f"{code}_confusion_fit_{args.model}_chain.npy")
+        if not os.path.exists(chain_path):
+            raise SystemExit(f"[{code}] --replot: no chain at {chain_path}; run the fit first.")
+        chain = np.load(chain_path)
+        ndim = chain.shape[1]
+        print(f"[{code}] --replot: loaded chain {chain.shape}, skipping emcee")
+        med = np.median(chain, axis=0)
+        lo, hi = np.percentile(chain, [16, 84], axis=0)
+        coeffs = {init["names"][i]: dict(median=float(med[i]), minus=float(med[i] - lo[i]),
+                                         plus=float(hi[i] - med[i])) for i in range(ndim)}
+        result = dict(code=code, model=args.model, channels=list(channels),
+                      convention="strain S_gal; fit channel = instr + R(f)*S_conf_strain, "
+                                 "R = lisatools A1TDISens.stochastic_transform",
+                      fit_band_hz=[fmin, fmax], n_per_decade=args.n_per_decade,
+                      n_points=int(fb.size), n_median_bins=int(mask.sum()),
+                      window=args.window, sigma_floor=args.log_sigma, coefficients=coeffs)
+        with open(os.path.join(args.out, f"{code}_confusion_fit_{args.model}.json"), "w") as fh:
+            json.dump(result, fh, indent=2)
+        conf_fit = stochastic_response(f) * model_conf(f, med, args.model)
+        plot_curves(os.path.join(args.out, f"{code}_confusion_fit_{args.model}.png"),
+                    f, Smed, fS, Ssaved, instr, ref, fmin, fmax,
+                    model_curve=instr[ref] + conf_fit,
+                    model_label=f"fit: instr + R(f)·S_conf ({args.model})",
+                    binned=binned, code=code, method=method)
+        try:
+            import corner
+            fig = corner.corner(chain, labels=init["names"], show_titles=False,
+                                quantiles=[0.16, 0.5, 0.84], bins=40, smooth=1.0, plot_datapoints=False)
+            axes = np.array(fig.axes).reshape((ndim, ndim))
+            for i, nm in enumerate(init["names"]):
+                q16, q50, q84 = np.percentile(chain[:, i], [16, 50, 84])
+                axes[i, i].set_title(f"{nm} = {q50:.3g} (+{q84 - q50:.2g}/-{q50 - q16:.2g})", fontsize=9)
+            fig.savefig(os.path.join(args.out, f"{code}_confusion_fit_{args.model}_corner.png"), dpi=120)
+            plt.close(fig)
+        except ImportError:
+            print("    (corner not installed; skipping corner plot)")
+        for name in init["names"]:
+            c = coeffs[name]
+            print(f"    {name:6s} = {c['median']:.4g} (+{c['plus']:.2g}/-{c['minus']:.2g})")
+        return
 
     # --- emcee ---
     try:

@@ -34,6 +34,9 @@ Examples (run from Foregrounds/):
         --dirs output/monte_carlo_comparisons/initial_condition_variations/fiducial
     # just rebuild summaries + table from fits already on disk:
     python analytic_fits/fit_all.py --root output/monte_carlo_comparisons --out analytic_fits/fits --collect-only
+    # rebuild every per-leaf figure (overlay+corner) + JSON from the saved chains, no emcee
+    # (e.g. after wiping analytic_fits/fits/ -- the chains + residual TDI survive on scratch):
+    python analytic_fits/fit_all.py --root output/monte_carlo_comparisons --out analytic_fits/fits --replot
 """
 import argparse
 import glob
@@ -175,6 +178,10 @@ def main():
     ap.add_argument("--skip-existing", action="store_true",
                     help="skip a (leaf, code) fit whose JSON already exists -> resumable sweep "
                          "(resubmit after a preemption/wall-hit and it continues where it left off)")
+    ap.add_argument("--replot", action="store_true",
+                    help="don't fit; rebuild JSON + per-leaf overlay/corner from each stored chain "
+                         "(forwards --replot to fit_confusion), then the per-family summaries + table. "
+                         "Recovers everything after a figures/ wipe -- chains + TDI survive on scratch.")
     args, extra = ap.parse_known_args()
 
     if args.root:
@@ -194,8 +201,21 @@ def main():
         leaves.append(dict(d=d, family=family, subfamily=subfamily, variation=variation, ddir=ddir))
     print(f"{len(leaves)} leaves, codes {args.codes}, model {args.model}, out {args.out}")
 
+    # --- replot: rebuild JSON + per-leaf overlay/corner from each stored chain (no emcee) ---
+    if args.replot:
+        for lf in leaves:
+            os.makedirs(lf["ddir"], exist_ok=True)
+            for code in args.codes:
+                chain = os.path.join(lf["d"], "_chains", f"{code}_confusion_fit_{args.model}_chain.npy")
+                if not os.path.exists(chain):
+                    continue
+                cmd = [sys.executable, FIT, "--dir", lf["d"], "--code", code, "--snr", str(args.snr),
+                       "--model", args.model, "--out", lf["ddir"], "--replot"] + extra
+                if subprocess.run(cmd).returncode != 0:
+                    print(f"[{lf['variation']}/{code}] replot failed; skipping")
+
     # --- run the (expensive) per-(leaf, code) fits into debug/<taxonomy>/ ---
-    if not args.collect_only:
+    elif not args.collect_only:
         for lf in leaves:
             os.makedirs(lf["ddir"], exist_ok=True)
             for code in args.codes:
