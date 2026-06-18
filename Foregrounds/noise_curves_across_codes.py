@@ -81,7 +81,7 @@ def main():
         except Exception as e:
             print(f"[{c}] could not load key 'S' ({e}); skipping")
             continue
-        ax.loglog(fa, Sa, color=colors[c], lw=3.0, label=c)
+        ax.loglog(fa, Sa, color=colors[c], lw=1.5, label=c)   # match _noise_curves (across-ICVs)
         iv = (fa >= 1e-4) & (fa <= 2e-2)
         if iv.any():
             ymax = max(ymax, float(np.nanmax(Sa[iv])))
@@ -93,7 +93,7 @@ def main():
     ax.set_xlim(1e-4, 2e-2)
     ax.set_ylim(max(float(instr.min()) * 0.5, 1e-44), ymax * 2)
     ax.set_xlabel(r"Frequency  $f$  [Hz]", fontsize=14)
-    ax.set_ylabel(r"channel PSD  $S(f)$  [Hz$^{-1}$]", fontsize=13)
+    ax.set_ylabel(r"channel PSD  $S_{\rm inst}+R\,S_{\rm gal}$  [Hz$^{-1}$]", fontsize=13)
     ax.text(0.97, 0.97, f"{variation} ({args.channel})", transform=ax.transAxes,
             ha="right", va="top", fontsize=15)
     ax.grid(True, which="major", ls=":", alpha=0.5)
