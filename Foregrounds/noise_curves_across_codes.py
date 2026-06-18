@@ -26,6 +26,11 @@ import gwg
 from helpers import load_and_prepare_config
 import reference_snr
 
+# Allow ad-hoc runs from Foregrounds/ without the sbatch / local_run.sh wrapper (which export
+# EXPERIMENT_ROOT). config.yaml's outputpath is ${EXPERIMENT_ROOT}/output, so default it to "./"
+# (resolved relative to config.yaml, i.e. the output/ symlink under Foregrounds/).
+os.environ.setdefault("EXPERIMENT_ROOT", "./")
+
 CODES = ['BPASS', 'BSE', 'ComBinE', 'COMPAS', 'COSMIC', 'METISSE', 'SeBa', 'SEVN']
 
 
