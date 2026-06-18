@@ -62,6 +62,8 @@ MTV_FAMILIES = {
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIT = os.path.join(HERE, "fit_confusion.py")
+# Mirrors fit_confusion.EXIT_TOO_FEW_BINS: a deliberate below-confusion-floor skip, not a crash.
+EXIT_BELOW_FLOOR = 3
 
 
 def load_json(out_ic, code, model):
@@ -211,7 +213,10 @@ def main():
                     continue
                 cmd = [sys.executable, FIT, "--dir", lf["d"], "--code", code, "--snr", str(args.snr),
                        "--model", args.model, "--out", lf["ddir"], "--replot"] + extra
-                if subprocess.run(cmd).returncode != 0:
+                rc = subprocess.run(cmd).returncode
+                if rc == EXIT_BELOW_FLOOR:
+                    print(f"[{lf['variation']}/{code}] below confusion floor (<10 bins); no replot")
+                elif rc != 0:
                     print(f"[{lf['variation']}/{code}] replot failed; skipping")
 
     # --- run the (expensive) per-(leaf, code) fits into debug/<taxonomy>/ ---
@@ -228,7 +233,10 @@ def main():
                     continue
                 cmd = [sys.executable, FIT, "--dir", lf["d"], "--code", code, "--snr", str(args.snr),
                        "--model", args.model, "--out", lf["ddir"]] + extra
-                if subprocess.run(cmd).returncode != 0:
+                rc = subprocess.run(cmd).returncode
+                if rc == EXIT_BELOW_FLOOR:
+                    print(f"[{lf['variation']}/{code}] below confusion floor (<10 bins); no fit")
+                elif rc != 0:
                     print(f"[{lf['variation']}/{code}] fit_confusion failed; skipping")
 
     # --- aggregate coefficients table (read whatever JSONs exist) ---

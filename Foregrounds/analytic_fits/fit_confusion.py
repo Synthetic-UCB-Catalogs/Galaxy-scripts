@@ -53,6 +53,11 @@ from scipy import ndimage
 MEDIAN_NORM = 1.0 / 0.7023319615912207
 CHANNELS_WITH_CONFUSION = ("A", "E")   # T carries negligible galactic confusion
 
+# Exit code raised when the coarse-grained residual has < 10 bins above the confusion floor:
+# a deliberate "no measurable foreground, nothing to fit" skip, distinct from a genuine crash
+# (exit 1) and from argparse misuse (exit 2). fit_all maps it to a "below confusion floor" label.
+EXIT_TOO_FEW_BINS = 3
+
 
 # --------------------------------------------------------------------------- I/O
 def load_residual_tdi(h5_path):
@@ -445,8 +450,9 @@ def main():
         return
 
     if fb.size < 10:
-        raise SystemExit(f"[{code}] only {fb.size} coarse bins; loosen the band/--conf-floor "
-                         f"or lower --n-per-decade.")
+        print(f"[{code}] only {fb.size} coarse bins (< 10): below confusion floor, no fit. "
+              f"Loosen --conf-floor/band or lower --n-per-decade to force one.")
+        raise SystemExit(EXIT_TOO_FEW_BINS)
 
     # --- replot: rebuild JSON + overlay + corner from the saved chain, no emcee. The chain
     # (output/<leaf>/_chains/) and the residual TDI (key 'tdi' in the h5) both survive a figures/
