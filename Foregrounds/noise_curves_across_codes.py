@@ -105,7 +105,7 @@ def main():
     ax.tick_params(which="both", direction="in", top=True, right=True, labelsize=12)
     ax.legend(fontsize=11, ncol=1, loc="upper left", framealpha=0.9)
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=300)
     print(f"wrote {out}  ({drawn} codes, channel {args.channel}, SNR>{args.snr_cutoff:g})")
 
 

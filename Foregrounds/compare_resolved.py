@@ -261,7 +261,7 @@ def _grouped_bar_plot(tab, variations, valcol, ylabel, outfile, ylim=None, legen
         ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
         fig.tight_layout()
         os.makedirs("figures", exist_ok=True)
-        fig.savefig(os.path.join("figures", outfile), dpi=150)
+        fig.savefig(os.path.join("figures", outfile), dpi=300)
         print(f"saved figures/{outfile}")
         plt.close(fig)
 
@@ -345,7 +345,7 @@ def _noise_curves(config, variations, variation_paths, tag="", channel="A"):
             ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
             fig.tight_layout()
             out = os.path.join("figures", f"noise_curves_{pre}{code}.png")
-            fig.savefig(out, dpi=150)
+            fig.savefig(out, dpi=300)
             print(f"saved {out}")
             plt.close(fig)
 
