@@ -64,8 +64,9 @@ def main():
     out = args.out or os.path.join("figures", f"noise_curves_across_codes_{variation}.png")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 
+    instr_fn = reference_snr._instrument_psd_fn(tdi)
     fref = np.logspace(-4, np.log10(2e-2), 2000)
-    instr = np.asarray(reference_snr._instrument_psd_fn(tdi)(fref)[0])
+    instr = np.asarray(instr_fn(fref)[0])
     colors = {c: plt.cm.gist_rainbow(i / (len(CODES) - 1)) for i, c in enumerate(CODES)}
 
     fig, ax = plt.subplots(figsize=(7.6, 5.2))
@@ -81,6 +82,10 @@ def main():
         except Exception as e:
             print(f"[{c}] could not load key 'S' ({e}); skipping")
             continue
+        # suppress unsubtracted bright-source spikes: above the confusion band the foreground
+        # tracks the instrument, so clip the high-f tail down to it.
+        instr_fa = np.asarray(instr_fn(fa)[0])
+        Sa = np.where((fa > 4.0e-3) & (Sa > instr_fa), instr_fa, Sa)
         ax.loglog(fa, Sa, color=colors[c], lw=1.5, label=c)   # match _noise_curves (across-ICVs)
         iv = (fa >= 1e-4) & (fa <= 2e-2)
         if iv.any():
@@ -92,8 +97,8 @@ def main():
     ax.loglog(fref, instr, "k--", lw=1.3, alpha=0.6, label="instrument")
     ax.set_xlim(1e-4, 2e-2)
     ax.set_ylim(max(float(instr.min()) * 0.5, 1e-44), ymax * 2)
-    ax.set_xlabel(r"Frequency  $f$  [Hz]", fontsize=14)
-    ax.set_ylabel(r"channel PSD  $S_{\rm inst}+R\,S_{\rm gal}$  [Hz$^{-1}$]", fontsize=13)
+    ax.set_xlabel(r"Frequency [Hz]", fontsize=14)
+    ax.set_ylabel(r"TDI1 channel PSD [Hz$^{-1}$]", fontsize=13)
     ax.text(0.97, 0.97, f"{variation} ({args.channel})", transform=ax.transAxes,
             ha="right", va="top", fontsize=15)
     ax.grid(True, which="major", ls=":", alpha=0.5)
