@@ -214,7 +214,7 @@ def frequency_distance_bins(code_name, var_type, var_name, rclone_flag=True,
 
 def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
                         ecl_weight=True, recalc_rad=True, model_array=None,
-                        panel_option='one'):
+                        panel_option='one',cmap='rainbow'):
     """
     Makes plots comparing a given model galaxy to the ZTF sample. Has the
     option to plot either one panel from 0 to 2000 pc, or three panels with
@@ -223,13 +223,13 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
     
     Parameters
     ----------
-    code_name: str
-        Name of the code (e.g. "ComBinE", "SEVN").
-    var_type: str
+    code_name: list of strs
+        Name(s) of the code(s) (e.g. "ComBinE", "SEVN").
+    var_type: list of strs
         Whether you want to use the initial condition variations or the mass
         transfer variations.
-    var_name: str
-        Name of the initial condition/mass transfer variation (e.g.
+    var_name: list of strs
+        Name(s) of the initial condition/mass transfer variation (e.g.
         "fiducial").
     rclone_flag: bool
         Whether you have set up rclone for the filepaths in the Google Drive or
@@ -239,7 +239,7 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
     recalc_rad: bool
         If True, calculate radii based on the wd_radius_PPE() formula. If
         False, use whatever radii are provided in the galaxy file.
-    model_array: array
+    model_array: dict of arrays or None
         Numbers of binaries per frequency-distance bin, as output by
         frequency_distance_bins(). Overrides the code/variation parameters if
         specified.
@@ -247,12 +247,21 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
         Specify "one" or "merged" to have one panel with distances from 0 to
         2000 pc. Specify "three" or "split" to have separate panels for 0-500,
         500-1000 and 1000-2000 pc.
+    cmap: str
+        Pyplot color map to use for the lines. Defaults to 'rainbow'.
     """
     
+    assert len(code_name) == len(var_type) == len(var_name), 'Please specify' \
+        ' the same number of variations in code_name, var_type and var_name.'
+    
     if model_array is None:
-        model_array, log_freq_bin_bounds, dist_bin_bounds = \
-            frequency_distance_bins(code_name, var_type, var_name,
-            rclone_flag=rclone_flag, ecl_weight=ecl_weight, recalc_rad=recalc_rad)
+        model_array = {} #initialise dictionary to hold each variation
+        
+        for j in range(len(code_name)):
+            model_array[j], log_freq_bin_bounds, dist_bin_bounds = \
+                frequency_distance_bins(code_name[j], var_type[j], var_name[j],
+                rclone_flag=rclone_flag, ecl_weight=ecl_weight,
+                recalc_rad=recalc_rad)
     
     log_freq_bin_centres = np.linspace(-4.95,-0.05,num=50)
     #dist_bin_centres = np.linspace(25,1975,num=40)
@@ -279,60 +288,86 @@ def plot_ztf_comparison(code_name, var_type, var_name, rclone_flag=True,
     
     freqs_reversed = list(reversed(log_freq_bin_centres[10:30]))
     
+    plot_colormap = plt.get_cmap(cmap)
+    plot_colors = plot_colormap(np.linspace(0,1,len(code_name)))
+    
     if panel_option == 'three' or panel_option == 'split':
-        model_near = [sum(model_array[i,0:10]) for i in range(model_array.shape[0])] #0-500 pc
-        model_mid = [sum(model_array[i,10:20]) for i in range(model_array.shape[0])] #500-1000 pc
-        model_far = [sum(model_array[i,20:40]) for i in range(model_array.shape[0])] #1000-2000 pc
-        
-        model_near_cu = np.cumsum(list(reversed(model_near[10:30])))
-        model_mid_cu = np.cumsum(list(reversed(model_mid[10:30])))
-        model_far_cu = np.cumsum(list(reversed(model_far[10:30])))
-        
         ztf_near_cu_uncorr = np.cumsum(list(reversed(ztf_near[10:30])))
         ztf_mid_cu_uncorr = np.cumsum(list(reversed(ztf_mid[10:30])))
         ztf_far_cu_uncorr = np.cumsum(list(reversed(ztf_far[10:30])))
         
+        #initialise empty dictionaries to hold variations
+        model_near = {}
+        model_mid = {}
+        model_far = {}
+        model_near_cu = {}
+        model_mid_cu = {}
+        model_far_cu = {}
+        
+        for j in range(len(code_name)):
+            model_near[j] = [sum(model_array[j][i,0:10]) for i in range(model_array[j].shape[0])] #0-500 pc
+            model_mid[j] = [sum(model_array[j][i,10:20]) for i in range(model_array[j].shape[0])] #500-1000 pc
+            model_far[j] = [sum(model_array[j][i,20:40]) for i in range(model_array[j].shape[0])] #1000-2000 pc
+            
+            model_near_cu[j] = np.cumsum(list(reversed(model_near[j][10:30])))
+            model_mid_cu[j] = np.cumsum(list(reversed(model_mid[j][10:30])))
+            model_far_cu[j] = np.cumsum(list(reversed(model_far[j][10:30])))
+        
         plt.figure(1)
-        plt.step(freqs_reversed,0.6*model_near_cu,'C0-',marker=11,linewidth=2,where='mid',label='Model')
+        for j in range(len(code_name)):
+            plt.step(freqs_reversed,0.6*model_near_cu[j],color=plot_colors[j],
+                     marker=11,linewidth=2,where='mid',label=(code_name[j] + ' ' + var_name[j]))
         plt.step(freqs_reversed,ztf_near_cu_uncorr,'k--',linewidth=2,where='mid',label='ZTF obs.')
         plt.yscale('log')
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('(A) ' + code_name + ', ' + var_name + ', distance = 0-500 pc')
+        plt.title('(A) Models vs. ZTF obs., distance = 0-500 pc')
         
         plt.figure(2)
-        plt.step(freqs_reversed,0.6*model_mid_cu,'C0-',marker=11,linewidth=2,where='mid',label='Model')
+        for j in range(len(code_name)):
+            plt.step(freqs_reversed,0.6*model_mid_cu[j],color=plot_colors[j],
+                     marker=11,linewidth=2,where='mid',label=(code_name[j] + ' ' + var_name[j]))
         plt.step(freqs_reversed,ztf_mid_cu_uncorr,'k--',linewidth=2,where='mid',label='ZTF obs.')
         plt.yscale('log')
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('(B) ' + code_name + ', ' + var_name + ', distance = 500-1000 pc')
+        plt.title('(B) Models vs. ZTF obs., distance = 500-1000 pc')
         
         plt.figure(3)
-        plt.step(freqs_reversed,0.6*model_far_cu,'C0-',marker=11,linewidth=2,where='mid',label='Model')
+        for j in range(len(code_name)):
+            plt.step(freqs_reversed,0.6*model_far_cu[j],color=plot_colors[j],
+                     marker=11,linewidth=2,where='mid',label=(code_name[j] + ' ' + var_name[j]))
         plt.step(freqs_reversed,ztf_far_cu_uncorr,'k--',linewidth=2,where='mid',label='ZTF obs.')
         plt.yscale('log')
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title('(C) ' + code_name + ', ' + var_name + ', distance = 1000-2000 pc')
+        plt.title('(C) Models vs. ZTF obs., distance = 1000-2000 pc')
         
     elif panel_option == 'one' or panel_option == 'merged':
-        model_all = [sum(model_array[i,0:40]) for i in range(model_array.shape[0])] #0-2000 pc
-        model_all_cu = np.cumsum(list(reversed(model_all[10:30])))
         ztf_all = [sum(x) for x in zip(ztf_near,ztf_mid,ztf_far)]
         ztf_all_cu_uncorr = np.cumsum(list(reversed(ztf_all[10:30])))
         
+        #initialise empty dictionaries to hold variations
+        model_all = {}
+        model_all_cu = {}
+        
+        for j in range(len(code_name)):
+            model_all[j] = [sum(model_array[j][i,0:40]) for i in range(model_array[j].shape[0])] #0-2000 pc
+            model_all_cu[j] = np.cumsum(list(reversed(model_all[j][10:30])))
+        
         plt.figure(1)
-        plt.step(freqs_reversed,0.6*model_all_cu,'C0-',marker=11,linewidth=2,where='mid',label='Model')
+        for j in range(len(code_name)):
+            plt.step(freqs_reversed,0.6*model_all_cu[j],color=plot_colors[j],
+                     marker=11,linewidth=2,where='mid',label=(code_name[j] + ' ' + var_name[j]))
         plt.step(freqs_reversed,ztf_all_cu_uncorr,'k--',linewidth=2,where='mid',label='ZTF obs.')
         plt.yscale('log')
         plt.legend()
         plt.xlabel('log(Frequency/Hz)')
         plt.ylabel('Cumulative amount of systems')
-        plt.title(code_name + ', ' + var_name + ', distance = 0-2000 pc')
+        plt.title('Models vs. ZTF obs., distance = 0-2000 pc')
         
     else:
         raise ValueError('Invalid panel_option specified.')
