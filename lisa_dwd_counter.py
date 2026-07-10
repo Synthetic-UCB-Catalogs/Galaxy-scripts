@@ -351,3 +351,88 @@ def total_dwd_count_plotter(code_list, var_type, var_list, cmap='rainbow', \
     ax.legend(var_list)
     
     return fig, ax
+
+def tables_of_counts(rclone_flag=True):
+    """
+    Makes tables containing the LISA-detectable and total DWD counts from
+    each of the initial condition and mass transfer variations.
+    
+    Parameters
+    ----------
+    rclone_flag: bool
+        Whether you have set up rclone for the filepaths in the Google Drive or
+        not.
+    
+    Returns
+    -------
+    icv_lisa: array
+        The counts of DWDs with LISA SNR>7 for the initial condition
+        variations.
+    mtv_lisa: array
+        The counts of DWDs with LISA SNR>7 for the mass transfer variations.
+    icv_total: array
+        The total counts of DWDs with freq>10^-4 Hz for the initial condition
+        variations.
+    mtv_total: array
+        The total counts of DWDs with freq>10^-4 Hz for the mass transfer
+        variations.
+    """
+    
+    code_list = ['BPASS','BSE','ComBinE','COMPAS','COSMIC','METISSE','SeBa', \
+                 'SEVN']
+    icv_list = ['fiducial','m2_min_05','porb_log_uniform','qmin_01', \
+                'thermal_ecc','uniform_ecc']
+    mtv_list = ['alpha_lambda_02','alpha_lambda_05','alpha_lambda_1', \
+                'alpha_lambda_2','alpha_gamma_2','accretion_0','accretion_05',\
+                'accretion_1','qcrit_claeys_14','qcrit_hurley_02', \
+                'qcrit_hurley_webbink','qcrit_zetas']
+    
+    icv_lisa = np.empty((len(code_list)+1,len(icv_list)+1),dtype=object)
+    mtv_lisa = np.empty((len(code_list)+1,len(mtv_list)+1),dtype=object)
+    icv_total = np.empty((len(code_list)+1,len(icv_list)+1),dtype=object)
+    mtv_total = np.empty((len(code_list)+1,len(mtv_list)+1),dtype=object)
+    
+    icv_lisa[0,0] = 'LISA_SNR>7'
+    mtv_lisa[0,0] = 'LISA_SNR>7'
+    icv_total[0,0] = 'f>1e-4'
+    mtv_total[0,0] = 'f>1e-4'
+    
+    for code_index in range(len(code_list)):
+        icv_lisa[code_index+1,0] = code_list[code_index]
+        mtv_lisa[code_index+1,0] = code_list[code_index]
+        icv_total[code_index+1,0] = code_list[code_index]
+        mtv_total[code_index+1,0] = code_list[code_index]
+        
+        for var_index in range(len(icv_list)): #initial condition vars
+            icv_lisa[0,var_index+1] = icv_list[var_index]
+            icv_total[0,var_index+1] = icv_list[var_index]
+            
+            try: icv_lisa[code_index+1,var_index+1] = \
+                dwd_count_single_code(code_list[code_index],'icv', \
+                icv_list[var_index],rclone_flag=rclone_flag)
+            except FileNotFoundError: icv_lisa[code_index+1,var_index+1] = \
+                np.nan #handles missing codes/variations
+                
+            try: icv_total[code_index+1,var_index+1] = \
+                all_dwd_single_code(code_list[code_index],'icv', \
+                icv_list[var_index],rclone_flag=rclone_flag)
+            except FileNotFoundError: icv_total[code_index+1,var_index+1] = \
+                np.nan #handles missing codes/variations
+        
+        for var_index in range(len(mtv_list)): #mass transfer vars
+            mtv_lisa[0,var_index+1] = mtv_list[var_index]
+            mtv_total[0,var_index+1] = mtv_list[var_index]
+            
+            try: mtv_lisa[code_index+1,var_index+1] = \
+                dwd_count_single_code(code_list[code_index],'mtv', \
+                mtv_list[var_index],rclone_flag=rclone_flag)
+            except FileNotFoundError: mtv_lisa[code_index+1,var_index+1] = \
+                np.nan #handles missing codes/variations
+                
+            try: mtv_total[code_index+1,var_index+1] = \
+                all_dwd_single_code(code_list[code_index],'mtv', \
+                mtv_list[var_index],rclone_flag=rclone_flag)
+            except FileNotFoundError: mtv_total[code_index+1,var_index+1] = \
+                np.nan #handles missing codes/variations
+    
+    return icv_lisa, mtv_lisa, icv_total, mtv_total
