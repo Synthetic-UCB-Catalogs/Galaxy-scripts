@@ -1,5 +1,5 @@
 """
-Per-cell confusion-foreground plots for the UCB plot-comparator tool.
+Per-cell confusion-foreground overlays: one plot per (code, variation).
 
 For each (code, variation) cell in the analytic-fit coefficient table, overlay
     - the pipeline noise PSD  S[channel]   (the "noisy" curve, from the output h5)
@@ -8,21 +8,19 @@ For each (code, variation) cell in the analytic-fit coefficient table, overlay
 on one axis, and write it as
     <outroot>/<family>[/<subfamily>]/<variation>/<CODE> confusion foreground.png
 
-The leading "<CODE> " (code name + space) is what ucb_plot_comparator parses as
-the Code field, with the rest becoming the Type. The folder tree mirrors the
-catalog taxonomy so the tool's variation/code selectors line up with Gijs's
-Code_comparison_plots.
+The leading "<CODE> " (code name + space) is the key the ucb_plot_comparator app
+parses as the Code field, with the rest becoming the Type. The folder tree mirrors
+the catalog taxonomy so it lines up with the Code_comparison_plots tree.
 
 Data sources:
   - noisy curve : {outputpath}/{datapath}/{code}_output_cat_snr{cutoff}.h5, key "S"
-                  (columns A,E,T,f). These ~1 GB files live on Thorny Flat, so the
-                  batch runs there; a single local h5 is enough to develop/test.
+                  (columns A,E,T,f). These files are large (~1 GB each).
   - fit curve   : analytic_fits/fits/confusion_coeffs_karnesis.csv (theta per cell),
                   fully local. Rebuilt via fit_confusion.model_conf (no re-fitting).
 
-Run in gbgpu-uni_env (needs lisatools for the instrument PSD and R(f)):
+Run in the pipeline env (needs lisatools for the instrument PSD and R(f)):
     python foreground_percell_plots.py --outputpath ./output --outroot ./Foreground_comparison_plots
-Point --outputpath at wherever the output h5 live (Thorny SCRATCH for the full set).
+Point --outputpath at wherever the output h5 live.
 """
 import argparse
 import glob

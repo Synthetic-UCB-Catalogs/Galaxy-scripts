@@ -224,6 +224,9 @@ def _family_outfile(outfile, family):
     return f"{stem}_{family}{ext}"
 
 
+FIGDIR = "figures"   # output dir for figures + CSVs; overridden by --outdir in main()
+
+
 def _grouped_bar_plot(tab, variations, valcol, ylabel, outfile, ylim=None, legend=True):
     """Per-code grouped bars colored by variation (lisa_dwd_count_plotter convention) at the
     SNR>MONEY_CUTOFF money value, with no error bars (the snr-sweep spread is a separate
@@ -260,8 +263,8 @@ def _grouped_bar_plot(tab, variations, valcol, ylabel, outfile, ylim=None, legen
         ax.yaxis.set_ticks_position("both")
         ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
         fig.tight_layout()
-        os.makedirs("figures", exist_ok=True)
-        fig.savefig(os.path.join("figures", outfile), dpi=300)
+        os.makedirs(FIGDIR, exist_ok=True)
+        fig.savefig(os.path.join(FIGDIR, outfile), dpi=300)
         print(f"saved figures/{outfile}")
         plt.close(fig)
 
@@ -294,7 +297,7 @@ def _noise_curves(config, variations, variation_paths, tag="", channel="A"):
     fref = np.logspace(-4, np.log10(2e-2), 2000)
     instr = np.asarray(reference_snr._instrument_psd_fn(tdi)(fref)[0])
     pre = f"{tag}_" if tag else ""
-    os.makedirs("figures", exist_ok=True)
+    os.makedirs(FIGDIR, exist_ok=True)
 
     def _load(h5):
         S = gwg.utils.load_h5(h5, key="S")
@@ -344,7 +347,7 @@ def _noise_curves(config, variations, variation_paths, tag="", channel="A"):
             ax.yaxis.set_ticks_position("both")
             ax.tick_params("both", length=3, width=0.5, which="both", direction="in", pad=10)
             fig.tight_layout()
-            out = os.path.join("figures", f"noise_curves_{pre}{code}.png")
+            out = os.path.join(FIGDIR, f"noise_curves_{pre}{code}.png")
             fig.savefig(out, dpi=300)
             print(f"saved {out}")
             plt.close(fig)
@@ -356,7 +359,11 @@ def main():
                     help="any catalog subpath in the tree to analyze; only its top component "
                          "(monte_carlo_comparisons[_lightweight_500K_DWDs]) is used to scope "
                          "discovery. REQUIRED; no config.yaml default, matching the pipeline scripts.")
+    ap.add_argument("--outdir", default="figures",
+                    help="directory for the output figures and CSVs (default: figures)")
     args = ap.parse_args()
+    global FIGDIR
+    FIGDIR = args.outdir
     os.environ.setdefault("EXPERIMENT_ROOT", "./")
     config = load_and_prepare_config("config.yaml")
     base_datapath = args.datapath
@@ -412,8 +419,8 @@ def main():
                 print(f"  {code:8s}  res = {_fmt(sub, 'resolved')}   {recs}")
 
     # Full per-leaf recovery table to CSV (the durable artifact; MTV plotting deferred).
-    os.makedirs("figures", exist_ok=True)
-    csv_path = os.path.join("figures", "recovery_table.csv")
+    os.makedirs(FIGDIR, exist_ok=True)
+    csv_path = os.path.join(FIGDIR, "recovery_table.csv")
     tab.sort_values(["family", "variation", "code", "cutoff"]).to_csv(csv_path, index=False)
     print(f"\nsaved {csv_path}  ({len(tab)} rows, families: {sorted(tab.family.unique())})")
 

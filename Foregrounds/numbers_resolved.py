@@ -176,10 +176,13 @@ def draw_grid(full_df, var_order, outfile, e1, e2, title):
               ncol=4, frameon=False, fontsize=9, title=title)
     ax.set_xlim(-2, len(variations))
     ax.set_ylim(-0.5, len(codes) + 2.5)
-    os.makedirs("figures", exist_ok=True)
-    fig.savefig(os.path.join("figures", outfile), bbox_inches='tight')
+    os.makedirs(FIGDIR, exist_ok=True)
+    fig.savefig(os.path.join(FIGDIR, outfile), bbox_inches='tight')
     print(f"saved figures/{outfile}")
     plt.close(fig)
+
+
+FIGDIR = "figures"   # output dir; overridden by --outdir in main()
 
 
 def main():
@@ -191,7 +194,11 @@ def main():
     ap.add_argument("--mode", choices=("total", "resolved"), default="total",
                     help="total = catalog DWDs < 1 kpc, f > 1e-4 (collaborators' N_1kpc, default); "
                          "resolved = the same cut on the snr7 resolved set (see header note).")
+    ap.add_argument("--outdir", default="figures",
+                    help="directory for the output grids and CSV (default: figures)")
     args = ap.parse_args()
+    global FIGDIR
+    FIGDIR = args.outdir
     os.environ.setdefault("EXPERIMENT_ROOT", "./")
     config = load_and_prepare_config("config.yaml")
     mc_prefix = args.datapath.rstrip("/").split("/")[0]
@@ -224,9 +231,9 @@ def main():
         print("No (code, leaf) catalogs to count.")
         return
     full_df = pd.DataFrame(rows)
-    os.makedirs("figures", exist_ok=True)
+    os.makedirs(FIGDIR, exist_ok=True)
     csv_name = f"N_1kpc_{args.mode}_table.csv"
-    full_df.sort_values(["family", "variation", "code"]).to_csv(os.path.join("figures", csv_name), index=False)
+    full_df.sort_values(["family", "variation", "code"]).to_csv(os.path.join(FIGDIR, csv_name), index=False)
     print(f"\nsaved figures/{csv_name} ({len(full_df)} rows)")
 
     e1, e2 = color_edges(full_df.N.values)
