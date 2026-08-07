@@ -265,7 +265,7 @@ def _grouped_bar_plot(tab, variations, valcol, ylabel, outfile, ylim=None, legen
         fig.tight_layout()
         os.makedirs(FIGDIR, exist_ok=True)
         fig.savefig(os.path.join(FIGDIR, outfile), dpi=300)
-        print(f"saved figures/{outfile}")
+        print(f"saved {os.path.join(FIGDIR, outfile)}")
         plt.close(fig)
 
 

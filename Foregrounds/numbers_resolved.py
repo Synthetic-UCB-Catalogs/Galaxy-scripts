@@ -178,7 +178,7 @@ def draw_grid(full_df, var_order, outfile, e1, e2, title):
     ax.set_ylim(-0.5, len(codes) + 2.5)
     os.makedirs(FIGDIR, exist_ok=True)
     fig.savefig(os.path.join(FIGDIR, outfile), bbox_inches='tight')
-    print(f"saved figures/{outfile}")
+    print(f"saved {os.path.join(FIGDIR, outfile)}")
     plt.close(fig)
 
 
@@ -234,7 +234,7 @@ def main():
     os.makedirs(FIGDIR, exist_ok=True)
     csv_name = f"N_1kpc_{args.mode}_table.csv"
     full_df.sort_values(["family", "variation", "code"]).to_csv(os.path.join(FIGDIR, csv_name), index=False)
-    print(f"\nsaved figures/{csv_name} ({len(full_df)} rows)")
+    print(f"\nsaved {os.path.join(FIGDIR, csv_name)} ({len(full_df)} rows)")
 
     e1, e2 = color_edges(full_df.N.values)
     print(f"colour edges (33/66 pct of positive counts): {e1}, {e2}")
