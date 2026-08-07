@@ -79,15 +79,44 @@ def discover_leaves(root_dir, mc_prefix, pattern):
     return sorted(leaves.values())
 
 
+# Faster multithreaded CSV parser for the large AllDWDs.csv, if pyarrow is installed.
+try:
+    import pyarrow  # noqa: F401
+    _CSV_ENGINE = "pyarrow"
+except ImportError:
+    _CSV_ENGINE = "c"
+
+
 # ----------------------------------------------------------------- total mode
 def count_total(alldwds_csv):
     """# catalog DWDs with f > FCUT and RRelkpc < DMAX_KPC (the collaborators' N_1kpc), or NaN.
-    f is the GW frequency 2/PSetTodayHours, matching gen_catalog."""
+    f is the GW frequency 2/PSetTodayHours, matching gen_catalog.
+
+    AllDWDs.csv is large (multi-GB text), so the count is cached in a sidecar
+    <csv>.n1kpc keyed by the CSV mtime; an unchanged catalog skips the reparse."""
     if not os.path.exists(alldwds_csv):
         return np.nan
-    df = pd.read_csv(alldwds_csv, usecols=['PSetTodayHours', 'RRelkpc'])
+    mtime = os.path.getmtime(alldwds_csv)
+    cache = alldwds_csv + ".n1kpc"
+    try:
+        with open(cache) as fh:
+            c_mtime, c_n = fh.read().split()
+        if float(c_mtime) == mtime:
+            return int(c_n)
+    except (OSError, ValueError):
+        pass
+    try:
+        df = pd.read_csv(alldwds_csv, usecols=['PSetTodayHours', 'RRelkpc'], engine=_CSV_ENGINE)
+    except Exception:                                         # pyarrow-specific hiccup -> C engine
+        df = pd.read_csv(alldwds_csv, usecols=['PSetTodayHours', 'RRelkpc'], engine="c")
     f = 2.0 / (df.PSetTodayHours.values * Constants.hr)
-    return int(np.sum((f > FCUT) & (df.RRelkpc.values < DMAX_KPC)))
+    n = int(np.sum((f > FCUT) & (df.RRelkpc.values < DMAX_KPC)))
+    try:
+        with open(cache, "w") as fh:
+            fh.write(f"{mtime} {n}")
+    except OSError:
+        pass
+    return n
 
 
 # -------------------------------------------------------------- resolved mode
